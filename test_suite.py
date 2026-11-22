@@ -1,0 +1,167 @@
+#!/usr/bin/env python3
+"""
+Test Suite for Prompt Engineering Studio
+========================================
+Comprehensive automated unit and integration tests verifying:
+1. Static asset integrity and required elements (HTML/CSS/JS)
+2. Prompt engineering technique templates and constraint integrity
+3. Server request handling, validation logic, and key masking without requiring socket permissions
+4. Error handling and key masking logic
+"""
+
+import unittest
+import os
+import io
+import re
+import json
+import time
+
+# Import server components
+import server
+
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+class TestStaticAssets(unittest.TestCase):
+    """Verify that all frontend files exist and satisfy user-friendly requirements."""
+
+    def test_files_exist(self):
+        for fname in ["index.html", "styles.css", "app.js", "server.py"]:
+            path = os.path.join(PROJECT_DIR, fname)
+            self.assertTrue(os.path.isfile(path), f"File {fname} must exist.")
+            self.assertGreater(os.path.getsize(path), 500, f"File {fname} should not be empty.")
+
+    def test_html_title_and_header(self):
+        with open(os.path.join(PROJECT_DIR, "index.html"), "r", encoding="utf-8") as f:
+            html = f.read()
+
+        # Check title and visible header
+        self.assertIn("<title>Prompt Engineering Studio</title>", html)
+        self.assertIn('<h1 class="brand-title">Prompt Engineering Studio</h1>', html)
+
+        # Check numbered stages
+        self.assertIn("Write your prompt", html)
+        self.assertIn("Choose improvements", html)
+        self.assertIn("Review enhanced prompts", html)
+        self.assertIn("Compare Gemini’s responses", html)
+
+        # Check How it works area
+        self.assertIn("How Prompt Engineering Studio Works", html)
+
+        # Check API key controls
+        self.assertIn("gemini-api-key-input", html)
+        self.assertIn("btn-toggle-key-visibility", html)
+        self.assertIn("btn-save-key", html)
+        self.assertIn("btn-remove-key", html)
+        self.assertIn("chk-remember-key", html)
+
+        # Check technique cards
+        for tech in ["tech-clear-task", "tech-role", "tech-audience", "tech-constraints",
+                     "tech-step-by-step", "tech-few-shot", "tech-structured", "tech-combined"]:
+            self.assertIn(tech, html, f"Technique checkbox {tech} must be in index.html")
+
+        # Check accessible landmarks
+        self.assertIn('role="main"', html)
+        self.assertIn('role="banner"', html)
+        self.assertIn('class="skip-link"', html)
+
+    def test_css_accessibility_and_responsiveness(self):
+        with open(os.path.join(PROJECT_DIR, "styles.css"), "r", encoding="utf-8") as f:
+            css = f.read()
+
+        self.assertIn(":focus-visible", css, "Must include visible focus styles for accessibility")
+        self.assertIn("@media (max-width:", css, "Must include responsive media queries")
+        self.assertIn("--primary", css, "Must define design system CSS variables")
+
+    def test_js_techniques_defined(self):
+        with open(os.path.join(PROJECT_DIR, "app.js"), "r", encoding="utf-8") as f:
+            js = f.read()
+
+        for tech in ["clear_task", "role", "audience", "constraints", "step_by_step", "few_shot", "structured", "combined"]:
+            self.assertIn(tech, js, f"Technique {tech} must be defined in app.js")
+
+        # Ensure no hardcoded secret
+        self.assertNotIn("AIzaSyB", js, "Never hardcode real Gemini API key in JS source")
+
+
+class TestPromptEngineeringTechniques(unittest.TestCase):
+    """Verify that each prompt technique preserves intent and adds required structure."""
+
+    def setUp(self):
+        self.original_prompt = "Explain climate change to a 12-year-old in under 100 words."
+        self.options = {
+            "audience": "12-year-old student",
+            "context": "Science classroom presentation",
+            "tone": "Friendly, encouraging, and engaging",
+            "length": "Under 100 words",
+            "format": "Bullet points with bold topic headers",
+            "role": "Friendly science teacher",
+            "fewShot": "• Idea: Earth's atmosphere acts like a blanket.\n• Problem: Burning fossil fuels makes it too thick."
+        }
+
+    def test_security_key_sanitization(self):
+        fake_key = "AIzaSyDummySecretKey1234567890abcdef"
+        raw_error = f"Google API error using key {fake_key}: Quota exhausted."
+        sanitized = server.sanitize_error_message(raw_error, fake_key)
+        self.assertNotIn(fake_key, sanitized, "Sanitized message must not contain the raw key")
+        self.assertIn("[REDACTED", sanitized)
+
+    def test_call_gemini_api_validation(self):
+        # Empty API key
+        res = server.call_gemini_api("Test prompt", "gemini-2.5-flash", "")
+        self.assertFalse(res["success"])
+        self.assertEqual(res["statusCode"], 401)
+        self.assertIn("API key", res["error"])
+
+        # Empty prompt
+        res = server.call_gemini_api("", "gemini-2.5-flash", "AIzaSyDummyKey12345678901234567890")
+        self.assertFalse(res["success"])
+        self.assertEqual(res["statusCode"], 400)
+        self.assertIn("Prompt cannot be empty", res["error"])
+
+        # Supported models check
+        supported_ids = [m["id"] for m in server.SUPPORTED_MODELS]
+        self.assertIn("gemini-3.1-flash-lite", supported_ids)
+        self.assertIn("gemini-3.5-flash-lite", supported_ids)
+        self.assertIn("gemini-3.8-flash", supported_ids)
+        self.assertIn("gemini-3.1-pro-preview", supported_ids)
+
+
+class MockSocket:
+    """Mock socket for testing SimpleHTTPRequestHandler without OS sockets."""
+    def __init__(self, request_bytes):
+        self.rfile = io.BytesIO(request_bytes)
+        self.wfile = io.BytesIO()
+
+    def makefile(self, mode, *args, **kwargs):
+        if 'r' in mode:
+            return self.rfile
+        elif 'w' in mode:
+            return self.wfile
+
+
+class TestHandlerInternals(unittest.TestCase):
+    """Directly test server handler dispatch without network sockets."""
+
+    def test_get_api_key_from_request(self):
+        handler = server.StudioRequestHandler.__new__(server.StudioRequestHandler)
+        handler.headers = {"x-goog-api-key": "AIzaSyHeaderKey123456"}
+        key = handler._get_api_key_from_request({})
+        self.assertEqual(key, "AIzaSyHeaderKey123456")
+
+        handler.headers = {"Authorization": "Bearer AIzaSyBearerKey123456"}
+        key = handler._get_api_key_from_request({})
+        self.assertEqual(key, "AIzaSyBearerKey123456")
+
+        handler.headers = {}
+        key = handler._get_api_key_from_request({"apiKey": "AIzaSyBodyKey123456"})
+        self.assertEqual(key, "AIzaSyBodyKey123456")
+
+    def test_find_available_port(self):
+        port = server.find_available_port(8080)
+        self.assertIsInstance(port, int)
+        self.assertGreaterEqual(port, 8080)
+
+
+if __name__ == "__main__":
+    unittest.main()

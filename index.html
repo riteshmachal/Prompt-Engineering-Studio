@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prompt Engineering Studio</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234f46e5' stroke-width='2'><path d='M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83'/></svg>">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Skip Link for Keyboard Accessibility -->
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <!-- Top Notification Toast Container -->
+  <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Header -->
+  <header class="app-header" role="banner">
+    <div class="header-inner container">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">Prompt Engineering Studio</h1>
+          <p class="brand-subtitle">Learn prompt techniques & compare results side by side with Google Gemini</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- API Key Status Pill & Button -->
+        <button id="btn-open-api-modal" class="pill-btn key-pill" aria-label="Configure Gemini API Key" title="Gemini API Key Settings">
+          <span class="status-dot dot-inactive" id="api-status-dot"></span>
+          <span id="api-status-text">No API Key Saved</span>
+          <svg class="chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </button>
+
+        <!-- Reset Button -->
+        <button id="btn-reset-session" class="btn btn-outline-danger btn-sm" title="Clear current session">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+          </svg>
+          <span>Reset</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main id="main-content" class="container main-content" role="main">
+
+    <!-- Welcome & How It Works Banner -->
+    <section class="how-it-works-card" id="how-it-works-section" aria-labelledby="how-it-works-title">
+      <div class="how-it-works-header">
+        <div class="how-it-works-title-wrap">
+          <span class="badge badge-indigo">Beginner Guide</span>
+          <h2 id="how-it-works-title" class="how-it-works-heading">How Prompt Engineering Studio Works</h2>
+        </div>
+        <button id="btn-toggle-guide" class="btn btn-ghost btn-sm" aria-expanded="true" aria-controls="guide-content">
+          <span id="guide-toggle-text">Hide Guide</span>
+          <svg id="guide-toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 15l-6-6-6 6"/>
+          </svg>
+        </button>
+      </div>
+
+      <div id="guide-content" class="how-it-works-body">
+        <p class="guide-intro">
+          Prompt engineering is the craft of structuring instructions so AI models give clearer, more reliable, and better-formatted answers. This studio lets you apply established prompt techniques to your raw task and test them directly using <strong>Google Gemini</strong>.
+        </p>
+        <div class="guide-grid">
+          <div class="guide-step">
+            <div class="guide-step-num">1</div>
+            <div class="guide-step-body">
+              <h3>Write your prompt</h3>
+              <p>Start with any basic question, task, or request in plain language, or pick a sample prompt.</p>
+            </div>
+          </div>
+          <div class="guide-step">
+            <div class="guide-step-num">2</div>
+            <div class="guide-step-body">
+              <h3>Choose improvements</h3>
+              <p>Pick prompt techniques like clear tasks, roles, constraints, or step-by-step logic.</p>
+            </div>
+          </div>
+          <div class="guide-step">
+            <div class="guide-step-num">3</div>
+            <div class="guide-step-body">
+              <h3>Review enhanced prompts</h3>
+              <p>Inspect the generated variations and read plain-language notes explaining what changed.</p>
+            </div>
+          </div>
+          <div class="guide-step">
+            <div class="guide-step-num">4</div>
+            <div class="guide-step-body">
+              <h3>Compare Gemini's responses</h3>
+              <p>Send prompts to Google Gemini and compare the actual responses side by side in real time.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Workflow Progress Navigation Tabs -->
+    <nav class="workflow-stepper" aria-label="Workflow Stages">
+      <ol class="stepper-list">
+        <li class="stepper-item active" id="step-nav-1">
+          <a href="#stage-1" class="stepper-link">
+            <span class="stepper-badge">1</span>
+            <span class="stepper-label">Write your prompt</span>
+          </a>
+        </li>
+        <li class="stepper-item" id="step-nav-2">
+          <a href="#stage-2" class="stepper-link">
+            <span class="stepper-badge">2</span>
+            <span class="stepper-label">Choose improvements</span>
+          </a>
+        </li>
+        <li class="stepper-item" id="step-nav-3">
+          <a href="#stage-3" class="stepper-link">
+            <span class="stepper-badge">3</span>
+            <span class="stepper-label">Review enhanced prompts</span>
+          </a>
+        </li>
+        <li class="stepper-item" id="step-nav-4">
+          <a href="#stage-4" class="stepper-link">
+            <span class="stepper-badge">4</span>
+            <span class="stepper-label">Compare Gemini responses</span>
+          </a>
+        </li>
+      </ol>
+    </nav>
+
+    <!-- STAGE 1: Write Your Prompt -->
+    <section class="stage-section" id="stage-1" aria-labelledby="stage-1-heading">
+      <div class="stage-header">
+        <div class="stage-badge-wrap">
+          <span class="stage-indicator">Stage 1</span>
+          <h2 id="stage-1-heading" class="stage-title">Write your prompt</h2>
+        </div>
+        <p class="stage-desc">Enter the raw prompt you want to improve, or load a realistic example to get started immediately.</p>
+      </div>
+
+      <div class="card stage-card">
+        <!-- Example Prompts Quick Bar -->
+        <div class="example-presets-bar">
+          <span class="preset-label">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+            Quick Samples:
+          </span>
+          <div class="preset-buttons">
+            <button type="button" class="btn btn-chip" data-sample="climate">Explain Climate Change (Science)</button>
+            <button type="button" class="btn btn-chip" data-sample="invoice">Customer Payment Follow-up (Business)</button>
+            <button type="button" class="btn btn-chip" data-sample="python">Optimize Python Function (Code)</button>
+          </div>
+        </div>
+
+        <!-- Main Prompt Textarea -->
+        <div class="form-group">
+          <div class="label-row">
+            <label for="original-prompt-input" class="form-label required-label">Original Prompt</label>
+            <span class="char-counter" id="original-prompt-counter">0 words | 0 chars</span>
+          </div>
+          <textarea
+            id="original-prompt-input"
+            class="form-control prompt-textarea"
+            rows="4"
+            placeholder="e.g., Explain climate change to a 12-year-old in under 100 words."
+            aria-describedby="prompt-hint prompt-validation-msg"
+          ></textarea>
+          <div id="prompt-validation-msg" class="validation-msg error-msg hidden" role="alert"></div>
+          <p id="prompt-hint" class="input-hint">Type your prompt in everyday language. You do not need to make it complicated—our engineering techniques will structure it in the next step.</p>
+        </div>
+
+        <!-- Optional Prompt Details Accordion -->
+        <div class="optional-details-panel">
+          <button
+            type="button"
+            class="optional-details-toggle"
+            id="btn-toggle-options"
+            aria-expanded="false"
+            aria-controls="optional-fields-container"
+          >
+            <div class="toggle-title-wrap">
+              <span class="optional-pill">Optional Details</span>
+              <span class="toggle-title">Add audience, context, tone, length, or format</span>
+            </div>
+            <svg class="accordion-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9l6 6 6-6"/>
+            </svg>
+          </button>
+
+          <div id="optional-fields-container" class="optional-fields-content hidden">
+            <p class="optional-intro-text">
+              These details are strictly optional. Only the fields you fill in will be used when crafting your enhanced prompts.
+            </p>
+
+            <div class="options-grid">
+              <!-- Audience -->
+              <div class="form-group">
+                <label for="opt-audience" class="form-label">
+                  Target Audience <span class="text-muted">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  id="opt-audience"
+                  class="form-control"
+                  placeholder="e.g., 12-year-old middle school student, or senior architect"
+                >
+                <span class="input-subhint">Who is this response for?</span>
+              </div>
+
+              <!-- Context -->
+              <div class="form-group">
+                <label for="opt-context" class="form-label">
+                  Background Context <span class="text-muted">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  id="opt-context"
+                  class="form-control"
+                  placeholder="e.g., Preparing a 5-minute science class presentation"
+                >
+                <span class="input-subhint">What is the situation or background?</span>
+              </div>
+
+              <!-- Tone -->
+              <div class="form-group">
+                <label for="opt-tone" class="form-label">
+                  Tone <span class="text-muted">(optional)</span>
+                </label>
+                <select id="opt-tone" class="form-control">
+                  <option value="">Default (natural & clear)</option>
+                  <option value="Friendly, encouraging, and engaging">Friendly & Encouraging</option>
+                  <option value="Professional, clear, and executive">Professional & Executive</option>
+                  <option value="Simple, direct, and jargon-free">Simple & Jargon-free</option>
+                  <option value="Academic, precise, and rigorous">Academic & Precise</option>
+                  <option value="Humorous, witty, and upbeat">Humorous & Upbeat</option>
+                </select>
+                <span class="input-subhint">How should the response sound?</span>
+              </div>
+
+              <!-- Length -->
+              <div class="form-group">
+                <label for="opt-length" class="form-label">
+                  Desired Length <span class="text-muted">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  id="opt-length"
+                  class="form-control"
+                  placeholder="e.g., Under 100 words, or 2 concise paragraphs"
+                >
+                <span class="input-subhint">Specific length constraint</span>
+              </div>
+
+              <!-- Output Format -->
+              <div class="form-group">
+                <label for="opt-format" class="form-label">
+                  Output Format <span class="text-muted">(optional)</span>
+                </label>
+                <select id="opt-format" class="form-control">
+                  <option value="">Default (clean paragraphs)</option>
+                  <option value="Bullet points with bold topic headers">Bullet points with bold headers</option>
+                  <option value="Numbered step-by-step sequence">Numbered step-by-step sequence</option>
+                  <option value="Markdown comparison table">Markdown table</option>
+                  <option value="Valid JSON object without markdown fences">Valid JSON object</option>
+                  <option value="Executive summary followed by key action items">Executive summary with action items</option>
+                </select>
+                <span class="input-subhint">How should the response be formatted?</span>
+              </div>
+
+              <!-- Role Persona -->
+              <div class="form-group">
+                <label for="opt-role" class="form-label">
+                  Expert Role <span class="text-muted">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  id="opt-role"
+                  class="form-control"
+                  placeholder="e.g., A friendly science teacher, or senior software engineer"
+                >
+                <span class="input-subhint">Used by the Role-based technique</span>
+              </div>
+            </div>
+
+            <!-- Few-Shot Demonstration Example -->
+            <div class="form-group few-shot-group">
+              <div class="label-row">
+                <label for="opt-fewshot" class="form-label">
+                  Few-Shot Example Output <span class="text-muted">(optional demonstration)</span>
+                </label>
+                <button type="button" id="btn-insert-sample-fewshot" class="btn btn-link btn-xs">Insert sample example</button>
+              </div>
+              <textarea
+                id="opt-fewshot"
+                class="form-control mono-field"
+                rows="3"
+                placeholder="Show Gemini an example of the exact format, style, or depth you want."
+              ></textarea>
+              <span class="input-subhint">Required only if you choose the 'Few-shot example' technique below.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stage 1 Footer / Next CTA -->
+        <div class="stage-actions">
+          <div class="prompt-status-summary" id="stage-1-summary">Ready to choose improvements.</div>
+          <button type="button" id="btn-go-to-stage-2" class="btn btn-primary">
+            <span>Continue to Improvements</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STAGE 2: Choose Improvements -->
+    <section class="stage-section" id="stage-2" aria-labelledby="stage-2-heading">
+      <div class="stage-header">
+        <div class="stage-badge-wrap">
+          <span class="stage-indicator">Stage 2</span>
+          <h2 id="stage-2-heading" class="stage-title">Choose improvements</h2>
+        </div>
+        <p class="stage-desc">Select one or more prompt-engineering techniques to apply. Each selected technique creates its own enhanced prompt.</p>
+      </div>
+
+      <div class="card stage-card">
+        <!-- Quick Technique Selection Filters -->
+        <div class="technique-filters-bar">
+          <span class="filter-label">Quick select:</span>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-select-all-tech">Select All</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-select-recommended-tech">Recommended (Task + Role + Constraints)</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-clear-tech">Deselect All</button>
+        </div>
+
+        <!-- Technique Selection Grid -->
+        <div class="techniques-grid" role="group" aria-label="Prompt Engineering Techniques">
+
+          <!-- Technique A: Clear Task -->
+          <label class="technique-card" for="tech-clear-task">
+            <div class="tech-card-header">
+              <input type="checkbox" id="tech-clear-task" class="tech-checkbox" value="clear_task" checked>
+              <div class="tech-title-wrap">
+                <span class="tech-letter">A</span>
+                <span class="tech-title">Clear Task</span>
+              </div>
+              <span class="badge badge-emerald">Core</span>
+            </div>
+            <p class="tech-desc">Makes the requested action direct, specific, and explicit upfront while strictly preserving original meaning.</p>
+            <div class="tech-tag-row">
+              <span class="tech-tag">Explicit directives</span>
+              <span class="tech-tag">No ambiguity</span>
+            </div>
+          </label>
+
+          <!-- Technique B: Role-based -->
+          <label class="technique-card" for="tech-role">
+            <div class="tech-card-header">
+              <input type="checkbox" id="tech-role" class="tech-checkbox" value="role" checked>
+              <div class="tech-title-wrap">
+                <span class="tech-letter">B</span>
+                <span class="tech-title">Role-based</span>
+              </div>
+              <span class="badge badge-indigo">Persona</span>
+            </div>
+            <p class="tech-desc">Assigns a focused domain expert persona (such as a friendly science teacher) to frame the voice and pedagogical approach.</p>
+            <div class="tech-tag-row">
+              <span class="tech-tag">Persona framing</span>
+              <span class="tech-tag">Appropriate tone</span>
+            </div>
+          </label>
+
+          <!-- Technique C: Context & Audience -->
+          <label class="technique-card" for="tech-audience">
+            <div class="tech-card-header">
+              <input type="checkbox" id="tech-audience" class="tech-checkbox" value="audience">
+              <div class="tech-title-wrap">
+                <span class="tech-letter">C</span>
+                <span class="tech-title">Context & Audience</span>
+              </div>
+              <span class="badge badge-amber">Targeted</span>
+            </div>
+            <p class="tech-desc">Calibrates vocabulary and conceptual depth specifically for your designated audience without adding unverified facts.</p>
+            <div class="tech-tag-row">
+              <span class="tech-tag">Audience calibrated</span>
+              <span class="tech-tag">Grounded context</span>
+            </div>
+          </label>
+
+          <!-- Technique D: Constraints -->
+          <label class="technique-card" for="tech-constraints">
+            <div class="tech-card-header">
+              <input type="checkbox" id="tech-constraints" class="tech-checkbox" value="constraints" checked>
+              <div class="tech-title-wrap">
+                <span class="tech-letter">D</span>
+                <span class="tech-title">Constraints & Guardrails</span>
+              </div>
+              <span class="badge badge-rose">Control</span>
+            </div>
+            <p class="tech-desc">Adds explicit negative and positive constraints (length limits, tone, no filler words) to keep the answer disciplined.</p>
+            <div class="tech-tag-row">
+              <span class="tech-tag">Word limits</span>
+              <span class="tech-tag">No filler fluff</span>
+            </div>
+          </label>
+
+          <!-- Technique E: Step-by-Step -->
+          <label class="technique-card" for="tech-step-by-step">
+            <div class="tech-card-header">
+              <input type="checkbox" id="tech-step-by-step" class="tech-checkbox" value="step_by_step">
+              <div class="tech-title-wrap">
+                <span class="tech-letter">E</span>
+                <span class="tech-title">Step-by-Step Guidance</span>
+              </div>
+              <span class="badge badge-cyan">Logic</span>
+            </div>
+            <p class="tech-desc">Guides the model to present an ordered progression of concise, logical steps without demanding hidden internal thoughts.</p>
+            <div class="tech-tag-row">
+              <span class="tech-tag">Sequential order</span>
+              <span class="tech-tag">Digestible chunks</span>
+            </div>
+          </label>
+
+          <!-- Technique F: Few-shot Example -->
+          <label class="technique-card" for="tech-few-shot">
+            <div class="tech-card-header">
+              <input type="checkbox" id="tech-few-shot" class="tech-checkbox" value="few_shot">
+              <div class="tech-title-wrap">
+                <span class="tech-letter">F</span>
+                <span class="tech-title">Few-Shot Example</span>
+              </div>
+              <span class="badge badge-purple">In-Context</span>
+            </div>
+            <p class="tech-desc">Provides an in-context demonstration so Gemini patterns its output after your exact example.</p>
+            <div class="tech-tag-row">
+              <span class="tech-tag">Style demonstration</span>
+              <span class="tech-tag">Pattern matching</span>
+            </div>
+          </label>
+
+          <!-- Technique G: Structured Output -->
+          <label class="technique-card" for="tech-structured">
+            <div class="tech-card-header">
+              <input type="checkbox" id="tech-structured" class="tech-checkbox" value="structured">
+              <div class="tech-title-wrap">
+                <span class="tech-letter">G</span>
+                <span class="tech-title">Structured Output</span>
+              </div>
+              <span class="badge badge-blue">Layout</span>
+            </div>
+            <p class="tech-desc">Enforces clean structural presentation such as bullet points, a comparative table, or structured JSON data.</p>
+            <div class="tech-tag-row">
+              <span class="tech-tag">Bullets & tables</span>
+              <span class="tech-tag">No raw chatter</span>
+            </div>
+          </label>
+
+          <!-- Bonus: Combined All-in-One Master Technique -->
+          <label class="technique-card tech-card-master" for="tech-combined">
+            <div class="tech-card-header">
+              <input type="checkbox" id="tech-combined" class="tech-checkbox" value="combined">
+              <div class="tech-title-wrap">
+                <span class="tech-letter">★</span>
+                <span class="tech-title">Combined All-in-One</span>
+              </div>
+              <span class="badge badge-gold">Master Prompt</span>
+            </div>
+            <p class="tech-desc">Synthesizes all selected techniques into a single, cohesive, production-grade master prompt.</p>
+            <div class="tech-tag-row">
+              <span class="tech-tag">Full synergy</span>
+              <span class="tech-tag">Multi-technique</span>
+            </div>
+          </label>
+
+        </div>
+
+        <div id="tech-validation-msg" class="validation-msg error-msg hidden" role="alert"></div>
+
+        <!-- Enhance Action Button Bar -->
+        <div class="stage-actions">
+          <div class="tech-selection-count" id="tech-selection-count">3 techniques selected</div>
+          <button type="button" id="btn-enhance-prompts" class="btn btn-primary btn-lg">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            <span id="btn-enhance-text">Enhance Prompts</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STAGE 3: Review Enhanced Prompts -->
+    <section class="stage-section" id="stage-3" aria-labelledby="stage-3-heading">
+      <div class="stage-header">
+        <div class="stage-badge-wrap">
+          <span class="stage-indicator">Stage 3</span>
+          <h2 id="stage-3-heading" class="stage-title">Review enhanced prompts</h2>
+        </div>
+        <p class="stage-desc">
+          Review how each technique altered the prompt. You can edit the text, read the explanation of what changed, and decide which versions to send to Gemini.
+        </p>
+      </div>
+
+      <!-- No Enhancements Empty State -->
+      <div id="enhanced-empty-state" class="empty-state-card card">
+        <div class="empty-state-icon">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="12" y1="18" x2="12" y2="12"/>
+            <line x1="9" y1="15" x2="15" y2="15"/>
+          </svg>
+        </div>
+        <h3 class="empty-state-title">No enhanced prompts generated yet</h3>
+        <p class="empty-state-desc">Select your preferred prompt techniques in Stage 2 above and click <strong>Enhance Prompts</strong> to view and edit variations.</p>
+      </div>
+
+      <!-- Enhanced Cards Container -->
+      <div id="enhanced-cards-container" class="enhanced-cards-container hidden">
+        <div class="enhanced-toolbar">
+          <div class="enhanced-counter" id="enhanced-active-counter">Showing 0 enhanced prompts</div>
+          <div class="enhanced-bulk-actions">
+            <button type="button" class="btn btn-ghost btn-xs" id="btn-check-all-comparison">Include all in comparison</button>
+            <button type="button" class="btn btn-ghost btn-xs" id="btn-uncheck-all-comparison">Exclude all</button>
+          </div>
+        </div>
+
+        <!-- Injected Cards will go here -->
+        <div id="enhanced-cards-list" class="cards-stack"></div>
+
+        <!-- Stage 3 Footer Action -->
+        <div class="stage-actions stage-3-actions">
+          <div class="comparison-ready-note" id="comparison-ready-note">Select prompts to test against Gemini below.</div>
+          <button type="button" id="btn-go-to-comparison" class="btn btn-primary">
+            <span>Proceed to Gemini Comparison</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STAGE 4: Compare Gemini's Responses -->
+    <section class="stage-section" id="stage-4" aria-labelledby="stage-4-heading">
+      <div class="stage-header">
+        <div class="stage-badge-wrap">
+          <span class="stage-indicator">Stage 4</span>
+          <h2 id="stage-4-heading" class="stage-title">Compare Gemini’s responses</h2>
+        </div>
+        <p class="stage-desc">
+          Send the original and improved prompts to <strong>Google Gemini</strong> to see how structural improvements affect actual AI performance side by side.
+        </p>
+      </div>
+
+      <div class="card stage-card">
+        <!-- Comparison Control Bar -->
+        <div class="comparison-control-bar">
+          <div class="comparison-selection-options">
+            <span class="control-label">Run comparison for:</span>
+            <div class="radio-group" role="radiogroup" aria-label="Comparison Prompts Selection">
+              <label class="radio-label">
+                <input type="radio" name="comparison-mode" value="both" checked>
+                <span>Original + Selected Enhanced <small class="text-emerald">(Recommended)</small></span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="comparison-mode" value="enhanced_only">
+                <span>Selected Enhanced Only</span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="comparison-mode" value="original_only">
+                <span>Original Prompt Only</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="comparison-run-wrap">
+            <div class="active-model-indicator">
+              <span class="model-pill" id="active-model-display">Model: gemini-3.1-flash-lite</span>
+            </div>
+            <button type="button" id="btn-run-comparison" class="btn btn-gemini btn-lg">
+              <svg class="sparkle-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+              <span id="btn-run-comparison-text">Compare with Gemini</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Missing Key Warning Banner (Shown if no key is entered when user clicks compare) -->
+        <div id="missing-key-banner" class="alert-banner alert-warning hidden" role="alert">
+          <div class="alert-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <div class="alert-body">
+            <h4 class="alert-title">Gemini API Key Required for Live Comparison</h4>
+            <p class="alert-desc">
+              To send prompts to Google Gemini, please enter your free Gemini API key. Your key stays in your local browser session and is never stored on external third-party servers.
+            </p>
+            <div class="alert-cta-row">
+              <button type="button" class="btn btn-sm btn-dark" id="btn-prompt-enter-key">Enter API Key</button>
+              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="link-external">
+                Get a free key from Google AI Studio &rarr;
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Comparison Progress Bar -->
+        <div id="comparison-progress-wrap" class="comparison-progress-wrap hidden">
+          <div class="progress-bar-container">
+            <div id="comparison-progress-bar" class="progress-bar-fill"></div>
+          </div>
+          <div class="progress-status-text" id="comparison-progress-text">Sending requests to Gemini...</div>
+        </div>
+
+        <!-- Comparison Empty State -->
+        <div id="comparison-empty-state" class="empty-state-card nested-empty">
+          <div class="empty-state-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="2" y="3" width="20" height="18" rx="2"/>
+              <line x1="12" y1="3" x2="12" y2="21"/>
+            </svg>
+          </div>
+          <h3 class="empty-state-title">Responses will appear here side by side</h3>
+          <p class="empty-state-desc">Click <strong>Compare with Gemini</strong> to test the original prompt against the enhanced versions simultaneously.</p>
+        </div>
+
+        <!-- Live Results Comparison Grid -->
+        <div id="comparison-results-grid" class="comparison-grid hidden" aria-live="polite">
+          <!-- Response Cards dynamically inserted here -->
+        </div>
+
+        <!-- Observable Differences Summary Section -->
+        <div id="observable-differences-panel" class="observable-differences-panel hidden">
+          <div class="panel-header">
+            <div class="panel-title-wrap">
+              <span class="badge badge-emerald">Analysis</span>
+              <h3 class="panel-title">Observable Differences & Insights</h3>
+            </div>
+            <span class="panel-badge-estimate">Automated Heuristic Observations</span>
+          </div>
+
+          <p class="differences-disclaimer">
+            The table below highlights observable differences in output length, formatting structure, and constraint adherence. These metrics are automated heuristic measurements to assist your learning, not subjective quality judgments or verified factual claims.
+          </p>
+
+          <div class="table-responsive">
+            <table class="differences-table" id="differences-table">
+              <thead>
+                <tr>
+                  <th scope="col">Prompt Version</th>
+                  <th scope="col">Words</th>
+                  <th scope="col">Duration</th>
+                  <th scope="col">Tokens</th>
+                  <th scope="col">Observed Structure</th>
+                  <th scope="col">Constraint Notes</th>
+                </tr>
+              </thead>
+              <tbody id="differences-tbody">
+                <!-- Dynamically filled -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Key Learnings Callout -->
+          <div class="learnings-card" id="learnings-card">
+            <h4>💡 Why This Matters for Beginners</h4>
+            <div id="learnings-content" class="learnings-content">
+              <!-- Dynamically populated comparison insight -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Gemini API Key Modal -->
+  <div id="api-key-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-api-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <div class="modal-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+          <h2 id="modal-api-title" class="modal-title">Gemini API Key Settings</h2>
+        </div>
+        <button type="button" class="btn-close" id="btn-close-api-modal" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <p class="modal-desc">
+          To run live prompt comparisons against Google Gemini, provide your official Gemini API key. Requests are sent directly to Google's official Gemini endpoint.
+        </p>
+
+        <!-- Current Key Input -->
+        <div class="form-group">
+          <label for="gemini-api-key-input" class="form-label">Google Gemini API Key</label>
+          <div class="input-password-wrap">
+            <input
+              type="password"
+              id="gemini-api-key-input"
+              class="form-control key-input mono-field"
+              placeholder="AIzaSy..."
+              autocomplete="off"
+              spellcheck="false"
+            >
+            <button type="button" id="btn-toggle-key-visibility" class="btn btn-ghost btn-eye" aria-label="Show or hide API key" title="Show/Hide Key">
+              <svg id="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
+          <div id="key-validation-feedback" class="validation-msg hidden"></div>
+        </div>
+
+        <!-- Model Selector -->
+        <div class="form-group">
+          <label for="gemini-model-select" class="form-label">Gemini Model</label>
+          <select id="gemini-model-select" class="form-control">
+            <option value="gemini-3.1-flash-lite" selected>Gemini 3.1 Flash Lite (Recommended: Fastest & Most Responsive)</option>
+            <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite (High Speed Multimodal)</option>
+            <option value="gemini-3.8-flash">Gemini 3.8 Flash (Frontier Model)</option>
+            <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview (Deep Reasoning)</option>
+          </select>
+          <span class="input-subhint">This single model will be used across all prompt comparisons for an objective evaluation.</span>
+        </div>
+
+        <!-- Storage Preference Checkbox -->
+        <div class="checkbox-option-wrap">
+          <label class="custom-checkbox-label">
+            <input type="checkbox" id="chk-remember-key">
+            <span><strong>Remember on this device</strong> (saves key to local browser storage)</span>
+          </label>
+          <p class="checkbox-subtext">If unchecked, your key is kept strictly in-memory for this tab's session and cleared when you close the page.</p>
+        </div>
+
+        <!-- Privacy & Security Notice Box -->
+        <div class="security-notice-box">
+          <div class="notice-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            <span>Security & Privacy Commitment</span>
+          </div>
+          <ul class="notice-list">
+            <li>Your API key is never hard-coded or bundled into source files.</li>
+            <li>No analytics or logging systems receive your API key or prompt text.</li>
+            <li>Prompts and keys are transmitted only when you initiate a live Gemini comparison.</li>
+            <li>Need a free key? Get one instantly from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a>.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" id="btn-remove-key" class="btn btn-outline-danger hidden">
+          Remove Saved Key
+        </button>
+        <div class="modal-footer-right">
+          <button type="button" id="btn-cancel-api-modal" class="btn btn-ghost">Cancel</button>
+          <button type="button" id="btn-save-key" class="btn btn-primary">Save Key</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Key Removal Confirmation Modal -->
+  <div id="confirm-remove-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-remove-title">
+    <div class="modal-card modal-card-sm">
+      <div class="modal-header">
+        <h3 id="modal-remove-title" class="modal-title">Remove Gemini API Key?</h3>
+        <button type="button" class="btn-close" id="btn-close-remove-modal" aria-label="Close dialog">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Removing the key will prevent live comparison requests from running until a new key is provided. Are you sure you want to remove your saved key?</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btn-cancel-remove-key" class="btn btn-ghost">Keep Key</button>
+        <button type="button" id="btn-confirm-remove-key" class="btn btn-danger">Yes, Remove Key</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset Studio Confirmation Modal -->
+  <div id="reset-confirm-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-reset-title">
+    <div class="modal-card modal-card-sm">
+      <div class="modal-header">
+        <h3 id="modal-reset-title" class="modal-title">Reset Studio Session?</h3>
+        <button type="button" class="btn-close" id="btn-close-reset-modal" aria-label="Close dialog">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>This will clear your current prompt, optional details, enhanced prompt variations, and live comparison results.</p>
+        <div class="checkbox-option-wrap mt-3">
+          <label class="custom-checkbox-label">
+            <input type="checkbox" id="chk-reset-also-remove-key">
+            <span>Also remove my saved Gemini API key</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btn-cancel-reset" class="btn btn-ghost">Cancel</button>
+        <button type="button" id="btn-confirm-reset" class="btn btn-danger">Reset Everything</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <div class="container footer-inner">
+      <div class="footer-copy">
+        <strong>Prompt Engineering Studio</strong> &bull; Powered by Google Gemini
+      </div>
+      <div class="footer-links">
+        <a href="https://ai.google.dev/gemini-api/docs" target="_blank" rel="noopener noreferrer">Google Gemini API Documentation</a>
+        <span class="sep">&bull;</span>
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
