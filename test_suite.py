@@ -106,18 +106,30 @@ class TestPromptEngineeringTechniques(unittest.TestCase):
         self.assertNotIn(fake_key, sanitized, "Sanitized message must not contain the raw key")
         self.assertIn("[REDACTED", sanitized)
 
+        # Query param sanitization
+        query_leak = "https://generativelanguage.googleapis.com/v1beta/models?key=AIzaSySecret12345678901234567890"
+        sanitized_query = server.sanitize_error_message(query_leak)
+        self.assertNotIn("AIzaSySecret", sanitized_query)
+        self.assertIn("[REDACTED_API_KEY]", sanitized_query)
+
     def test_call_gemini_api_validation(self):
         # Empty API key
-        res = server.call_gemini_api("Test prompt", "gemini-2.5-flash", "")
+        res = server.call_gemini_api("Test prompt", "gemini-3.5-flash-lite", "")
         self.assertFalse(res["success"])
         self.assertEqual(res["statusCode"], 401)
         self.assertIn("API key", res["error"])
 
         # Empty prompt
-        res = server.call_gemini_api("", "gemini-2.5-flash", "AIzaSyDummyKey12345678901234567890")
+        res = server.call_gemini_api("", "gemini-3.5-flash-lite", "AIzaSyDummyKey12345678901234567890")
         self.assertFalse(res["success"])
         self.assertEqual(res["statusCode"], 400)
         self.assertIn("Prompt cannot be empty", res["error"])
+
+        # Deprecated model rejection
+        res_deprecated = server.call_gemini_api("Hello", "gemini-2.0-flash", "AIzaSyDummyKey12345678901234567890")
+        self.assertFalse(res_deprecated["success"])
+        self.assertEqual(res_deprecated["statusCode"], 404)
+        self.assertIn("retired", res_deprecated["error"])
 
         # Supported models check
         supported_ids = [m["id"] for m in server.SUPPORTED_MODELS]

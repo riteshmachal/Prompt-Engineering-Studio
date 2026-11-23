@@ -191,11 +191,17 @@
         }
       }
 
+      // Check saved model and validate against supported active models
+      const validModels = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-3.1-pro-preview'];
       const savedModel = localStorage.getItem('pes_selected_model');
-      if (savedModel) {
+      if (savedModel && validModels.includes(savedModel) && savedModel !== 'gemini-3.1-flash-lite') {
         state.selectedModel = savedModel;
-        dom.geminiModelSelect.value = savedModel;
+      } else {
+        // Automatically default/migrate to the verified, responsive model
+        state.selectedModel = 'gemini-3.5-flash-lite';
+        try { localStorage.setItem('pes_selected_model', 'gemini-3.5-flash-lite'); } catch (e) {}
       }
+      dom.geminiModelSelect.value = state.selectedModel;
       dom.activeModelDisplay.textContent = `Model: ${state.selectedModel}`;
     } catch (e) {
       console.warn('Could not read from localStorage:', e);
@@ -207,6 +213,11 @@
       const res = await fetch('/api/config');
       if (res.ok) {
         const data = await res.json();
+        if (data.default_model && (!state.selectedModel || state.selectedModel === 'gemini-3.1-flash-lite')) {
+          state.selectedModel = data.default_model;
+          dom.geminiModelSelect.value = state.selectedModel;
+          dom.activeModelDisplay.textContent = `Model: ${state.selectedModel}`;
+        }
         if (data.has_server_key && !state.apiKey) {
           // Server has a configured key
           dom.apiStatusDot.className = 'status-dot dot-active';
@@ -876,7 +887,16 @@
     // Send independent requests in parallel
     const promises = queue.map(async (item, idx) => {
       try {
-        const result = await executeGeminiRequest(item.prompt, state.selectedModel, state.apiKey);
+        const onRetry = (attempt, maxAttempts) => {
+          const statusBadge = document.getElementById(`status-${item.id}`);
+          if (statusBadge) {
+            statusBadge.className = 'result-status-badge status-generating';
+            statusBadge.innerHTML = `<span class="spinner-sm"></span><span>Retrying (${attempt}/${maxAttempts})...</span>`;
+          }
+          dom.comparisonProgressText.textContent = `Retrying ${item.label} (temporary provider spike)...`;
+        };
+
+        const result = await executeGeminiRequest(item.prompt, state.selectedModel, state.apiKey, onRetry);
         completedCount++;
         const pct = Math.round((completedCount / queue.length) * 90) + 10;
         updateProgress(pct, `Completed ${completedCount} of ${queue.length} responses...`);
@@ -921,136 +941,179 @@
     // Render Observable Differences & Diagnostic Breakdown
     renderObservableDifferences();
     updateStepper(4);
-    showToast('Gemini comparison completed successfully!', 'success');
+    showToast('Gemini comparison completed!', 'success');
   }
 
-  async function executeGeminiRequest(promptText, model, key) {
-    // Attempt backend server proxy first
+  async function executeGeminiRequest(promptText, model, key, onRetry) {
+    const requestedModel = (model || state.selectedModel || 'gemini-3.5-flash-lite').trim();
+
+    // 1. Attempt backend server proxy first
     try {
       const serverRes = await fetch('/api/gemini/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-goog-api-key': key
+          'x-goog-api-key': (key || '').trim()
         },
         body: JSON.stringify({
           prompt: promptText,
-          model: model,
-          apiKey: key,
+          model: requestedModel,
+          apiKey: (key || '').trim(),
           temperature: 0.7
         })
       });
 
-      if (serverRes.ok) {
-        return await serverRes.json();
-      }
+      const data = await serverRes.json().catch(() => null);
+      if (data) {
+        if (data.success) {
+          return {
+            ...data,
+            model: data.model || requestedModel
+          };
+        }
 
-      // If backend responded with error
-      const errData = await serverRes.json().catch(() => null);
-      if (errData && errData.error) {
-        const errMsg = String(errData.error);
-        if (errMsg.includes('CERTIFICATE_VERIFY_FAILED') || errMsg.includes('Network connection error')) {
-          // Fall through to direct browser fetch
-        } else {
+        // Check if backend returned a non-retryable error (e.g. invalid key 401, bad request 400, deprecated 404, quota 429)
+        const isNonRetryable = data.statusCode === 400 || data.statusCode === 401 || data.statusCode === 403 || data.statusCode === 404 || data.statusCode === 429 || data.retryable === false;
+        if (isNonRetryable) {
           return {
             success: false,
-            error: errData.error,
-            statusCode: serverRes.status
+            error: data.error,
+            statusCode: data.statusCode || serverRes.status,
+            model: data.model || requestedModel,
+            retryable: false
+          };
+        }
+
+        // If backend returned a network/cert error, fall through to direct browser fetch
+        const errMsg = String(data.error || '');
+        if (!errMsg.includes('CERTIFICATE_VERIFY_FAILED') && !errMsg.includes('Network connection error')) {
+          return {
+            success: false,
+            error: data.error,
+            statusCode: data.statusCode || serverRes.status,
+            model: data.model || requestedModel,
+            retryable: data.retryable || false
           };
         }
       }
     } catch (netErr) {
-      // Backend not running (e.g. static host); fallback to direct browser fetch
+      // Backend not running; fallback to direct browser fetch
     }
 
-    // Direct fetch to official Google Gemini API endpoint
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
-    const start = performance.now();
+    // 2. Direct browser fetch fallback (for static hosting or SSL bypass)
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(requestedModel)}:generateContent`;
+    let attempts = 0;
+    const maxAttempts = 2; // Bounded retry: 1 initial attempt + 1 retry
 
-    try {
-      const resp = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': key.trim()
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts: [{ text: promptText }]
+    while (attempts < maxAttempts) {
+      attempts++;
+      const start = performance.now();
+      try {
+        const resp = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': (key || '').trim()
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: 'user',
+                parts: [{ text: promptText }]
+              }
+            ],
+            generationConfig: {
+              temperature: 0.7
             }
-          ],
-          generationConfig: {
-            temperature: 0.7
+          })
+        });
+
+        const elapsed = Math.round(performance.now() - start);
+
+        if (!resp.ok) {
+          const errorJson = await resp.json().catch(() => null);
+          let errorMsg = `HTTP Error ${resp.status}`;
+          if (errorJson && errorJson.error && errorJson.error.message) {
+            errorMsg = errorJson.error.message;
           }
-        })
-      });
 
-      const elapsed = Math.round(performance.now() - start);
+          // Check for transient 500/503/504 errors: bounded retry with backoff
+          const isTransient = resp.status >= 500 && resp.status <= 504;
+          if (isTransient && attempts < maxAttempts) {
+            if (typeof onRetry === 'function') onRetry(attempts + 1, maxAttempts);
+            await new Promise(r => setTimeout(r, 1500));
+            continue;
+          }
 
-      if (!resp.ok) {
-        const errorJson = await resp.json().catch(() => null);
-        let errorMsg = `HTTP Error ${resp.status}`;
-        if (errorJson && errorJson.error && errorJson.error.message) {
-          errorMsg = errorJson.error.message;
+          let friendly = errorMsg;
+          if (resp.status === 400 || resp.status === 401 || resp.status === 403) {
+            friendly = 'Invalid or rejected Gemini API key. Please check your key in Google AI Studio and re-enter it.';
+          } else if (resp.status === 404) {
+            friendly = `Gemini model '${requestedModel}' was not found or is no longer available. Please select a supported model such as gemini-3.5-flash-lite.`;
+          } else if (resp.status === 429) {
+            friendly = `Gemini quota or rate limit exceeded for model '${requestedModel}'. Please wait a moment before sending another request.`;
+          } else if (resp.status >= 500) {
+            friendly = `Google Gemini service is temporarily overloaded for model '${requestedModel}' (${resp.status} Service Unavailable). Spikes in demand are temporary; please retry in a few moments or switch to gemini-3.5-flash-lite.`;
+          }
+
+          return {
+            success: false,
+            error: friendly,
+            statusCode: resp.status,
+            duration_ms: elapsed,
+            model: requestedModel,
+            retryable: isTransient
+          };
         }
 
-        let friendly = errorMsg;
-        if (resp.status === 400 || resp.status === 401 || resp.status === 403) {
-          friendly = 'Invalid or rejected Gemini API key. Please check your key in Google AI Studio and re-enter it.';
-        } else if (resp.status === 429) {
-          friendly = 'Gemini quota or rate limit exceeded. Please wait a moment before sending another request.';
+        const data = await resp.json();
+        const candidates = data.candidates || [];
+        if (!candidates.length) {
+          const blockReason = data.promptFeedback?.blockReason || 'Filtered by safety policies';
+          return {
+            success: false,
+            error: `Content was filtered by Gemini safety system: ${blockReason}`,
+            statusCode: 200,
+            duration_ms: elapsed,
+            model: requestedModel,
+            retryable: false
+          };
         }
 
+        const first = candidates[0];
+        const text = (first.content && first.content.parts && first.content.parts[0])
+          ? first.content.parts.map(p => p.text || '').join('')
+          : '';
+
+        const usageMetadata = data.usageMetadata || {};
+
+        return {
+          success: true,
+          text,
+          model: requestedModel,
+          duration_ms: elapsed,
+          usage: {
+            prompt_tokens: usageMetadata.promptTokenCount || 0,
+            candidates_tokens: usageMetadata.candidatesTokenCount || 0,
+            total_tokens: usageMetadata.totalTokenCount || 0
+          }
+        };
+
+      } catch (err) {
+        if (attempts < maxAttempts) {
+          if (typeof onRetry === 'function') onRetry(attempts + 1, maxAttempts);
+          await new Promise(r => setTimeout(r, 1500));
+          continue;
+        }
         return {
           success: false,
-          error: friendly,
-          statusCode: resp.status,
-          duration_ms: elapsed,
-          model
+          error: `Network error connecting to Gemini: ${sanitizeErrorText(err.message, key)}`,
+          statusCode: 0,
+          duration_ms: 0,
+          model: requestedModel,
+          retryable: true
         };
       }
-
-      const data = await resp.json();
-      const candidates = data.candidates || [];
-      if (!candidates.length) {
-        return {
-          success: false,
-          error: 'Gemini returned no response candidates or content was filtered by safety policies.',
-          statusCode: 200,
-          duration_ms: elapsed,
-          model
-        };
-      }
-
-      const text = candidates[0].content?.parts?.map(p => p.text).join('') || '';
-      let usage = null;
-      if (data.usageMetadata) {
-        usage = {
-          prompt_tokens: data.usageMetadata.promptTokenCount || 0,
-          candidate_tokens: data.usageMetadata.candidatesTokenCount || 0,
-          total_tokens: data.usageMetadata.totalTokenCount || 0
-        };
-      }
-
-      return {
-        success: true,
-        text,
-        duration_ms: elapsed,
-        usage,
-        model
-      };
-
-    } catch (e) {
-      const elapsed = Math.round(performance.now() - start);
-      return {
-        success: false,
-        error: `Network error: ${sanitizeErrorText(e.message, key)}`,
-        statusCode: 0,
-        duration_ms: elapsed,
-        model
-      };
     }
   }
 
@@ -1128,6 +1191,7 @@
       }
 
       metaEl.innerHTML = `
+        <span class="meta-pill">Model: ${escapeHtml(item.model || state.selectedModel)}</span>
         <span class="meta-pill">Time: ${durationSec}s</span>
         ${tokensHtml}
         <span class="meta-pill">Words: ${countWords(item.response)}</span>
@@ -1138,9 +1202,12 @@
 
       bodyEl.innerHTML = `
         <div class="validation-msg error-msg">
-          <strong>Failed to get response:</strong> ${escapeHtml(item.error || 'Unknown error occurred.')}
+          <strong>Request Failed:</strong> ${escapeHtml(item.error || 'Unknown error occurred.')}
         </div>
-        <p class="input-subhint mt-3">Please verify that your Gemini API key is valid and has remaining quota in Google AI Studio.</p>
+        <p class="input-subhint mt-3">Model: <code>${escapeHtml(item.model || state.selectedModel)}</code></p>
+      `;
+      metaEl.innerHTML = `
+        <span class="meta-pill">Model: ${escapeHtml(item.model || state.selectedModel)}</span>
       `;
       copyBtn.disabled = true;
     }
@@ -1272,6 +1339,9 @@
     }
     clean = clean.replace(/AIzaSy[A-Za-z0-9_-]{33}/g, '[REDACTED_API_KEY]');
     clean = clean.replace(/AQ\.[A-Za-z0-9_.-]{20,}/g, '[REDACTED_API_KEY]');
+    clean = clean.replace(/([?&]key=)[^&\s"']+/g, '$1[REDACTED_API_KEY]');
+    clean = clean.replace(/(Bearer\s+)[A-Za-z0-9_.-]{10,}/g, '$1[REDACTED_TOKEN]');
+    clean = clean.replace(/(x-goog-api-key:\s*)[^\s"']+/g, '$1[REDACTED_API_KEY]');
     return clean;
   }
 

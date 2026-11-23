@@ -53,34 +53,63 @@ DEFAULT_MODEL_ID = "gemini-3.5-flash-lite"
 
 
 def sanitize_error_message(msg: str, key: Optional[str] = None) -> str:
-    """Mask any accidental API key leaks in error messages."""
+    """Mask any accidental API key leaks or sensitive headers in error messages."""
+    if not msg:
+        return ""
     if key and len(key) > 6:
         msg = msg.replace(key, f"{key[:4]}...[REDACTED]")
-    # Also mask any generic AIzaSy or AQ. keys that might appear
+    # Mask any generic AIzaSy or AQ. keys that might appear
     import re
     msg = re.sub(r'AIzaSy[A-Za-z0-9_-]{33}', '[REDACTED_API_KEY]', msg)
     msg = re.sub(r'AQ\.[A-Za-z0-9_.-]{20,}', '[REDACTED_API_KEY]', msg)
+    msg = re.sub(r'([?&]key=)[^&\s"\']+', r'\1[REDACTED_API_KEY]', msg)
+    msg = re.sub(r'(Bearer\s+)[A-Za-z0-9_.-]{10,}', r'\1[REDACTED_TOKEN]', msg)
+    msg = re.sub(r'(x-goog-api-key:\s*)[^\s"\']+', r'\1[REDACTED_API_KEY]', msg)
     return msg
 
 
-def call_gemini_api(prompt: str, model: str, api_key: str, temperature: float = 0.7) -> Dict[str, Any]:
-    """Execute a single generation request to the official Google Gemini API."""
+def call_gemini_api(prompt: str, model: str, api_key: str, temperature: float = 0.7, max_retries: int = 1) -> Dict[str, Any]:
+    """Execute a single generation request to the official Google Gemini API with bounded retry on transient errors."""
     if not api_key or not api_key.strip():
         return {
             "success": False,
             "error": "No Gemini API key provided. Please enter and save your API key in the settings.",
-            "statusCode": 401
+            "statusCode": 401,
+            "retryable": False
         }
 
     if not prompt or not prompt.strip():
         return {
             "success": False,
             "error": "Prompt cannot be empty.",
-            "statusCode": 400
+            "statusCode": 400,
+            "retryable": False
         }
 
     if not model or not model.strip():
         model = DEFAULT_MODEL_ID
+
+    model = model.strip()
+    if model.startswith("models/"):
+        model = model[7:]
+
+    # Check for deprecated models to return a helpful, immediate non-retry error
+    deprecated_models = {
+        "gemini-2.0-flash": f"Model 'gemini-2.0-flash' has been retired by Google. Please select '{DEFAULT_MODEL_ID}'.",
+        "gemini-2.5-flash": f"Model 'gemini-2.5-flash' is no longer available to new users. Please select '{DEFAULT_MODEL_ID}'.",
+        "gemini-2.5-flash-lite": f"Model 'gemini-2.5-flash-lite' is no longer available to new users. Please select '{DEFAULT_MODEL_ID}'.",
+        "gemini-1.5-flash": f"Model 'gemini-1.5-flash' has been retired by Google. Please select '{DEFAULT_MODEL_ID}'.",
+        "gemini-1.5-pro": f"Model 'gemini-1.5-pro' has been retired by Google. Please select '{DEFAULT_MODEL_ID}'."
+    }
+    if model in deprecated_models:
+        return {
+            "success": False,
+            "error": deprecated_models[model],
+            "raw_error": f"Deprecated model requested: {model}",
+            "statusCode": 404,
+            "retryable": False,
+            "model": model
+        }
 
     endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     headers = {
@@ -102,10 +131,7 @@ def call_gemini_api(prompt: str, model: str, api_key: str, temperature: float = 
         }
     }
 
-    start_time = time.perf_counter()
     req_data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(endpoint, data=req_data, headers=headers, method="POST")
-
     open_kwargs = {"timeout": 30}
     try:
         import ssl
@@ -113,127 +139,153 @@ def call_gemini_api(prompt: str, model: str, api_key: str, temperature: float = 
     except Exception:
         pass
 
-    try:
+    attempts = 0
+    total_allowed = 1 + max(0, min(2, max_retries))  # max 2 attempts total (1 retry)
+    start_time = time.perf_counter()
+
+    while attempts < total_allowed:
+        attempts += 1
+        req = urllib.request.Request(endpoint, data=req_data, headers=headers, method="POST")
+
         try:
-            resp = urllib.request.urlopen(req, **open_kwargs)
-        except urllib.error.URLError as uerr:
-            import ssl
-            reason_str = str(getattr(uerr, 'reason', uerr))
-            if "CERTIFICATE_VERIFY_FAILED" in reason_str or isinstance(getattr(uerr, 'reason', None), getattr(ssl, 'SSLCertVerificationError', tuple())):
-                open_kwargs["context"] = ssl._create_unverified_context()
+            try:
                 resp = urllib.request.urlopen(req, **open_kwargs)
-            else:
-                raise
+            except urllib.error.URLError as uerr:
+                import ssl
+                reason_str = str(getattr(uerr, 'reason', uerr))
+                if "CERTIFICATE_VERIFY_FAILED" in reason_str or isinstance(getattr(uerr, 'reason', None), getattr(ssl, 'SSLCertVerificationError', tuple())):
+                    open_kwargs["context"] = ssl._create_unverified_context()
+                    resp = urllib.request.urlopen(req, **open_kwargs)
+                else:
+                    raise
 
-        with resp:
+            with resp:
+                elapsed_ms = round((time.perf_counter() - start_time) * 1000)
+                res_body = resp.read().decode("utf-8")
+                data = json.loads(res_body)
+
+                candidates = data.get("candidates", [])
+                if not candidates:
+                    feedback = data.get("promptFeedback", {})
+                    block_reason = feedback.get("blockReason", "No response candidates returned.")
+                    return {
+                        "success": False,
+                        "error": f"Content was filtered by Gemini safety system: {block_reason}",
+                        "statusCode": 200,
+                        "duration_ms": elapsed_ms,
+                        "model": model,
+                        "retryable": False
+                    }
+
+                first_candidate = candidates[0]
+                finish_reason = first_candidate.get("finishReason", "STOP")
+                parts = first_candidate.get("content", {}).get("parts", [])
+                text = "".join(part.get("text", "") for part in parts)
+
+                if finish_reason == "SAFETY":
+                    return {
+                        "success": False,
+                        "error": "Response was blocked due to Gemini safety policies.",
+                        "statusCode": 200,
+                        "duration_ms": elapsed_ms,
+                        "model": model,
+                        "retryable": False
+                    }
+
+                usage_metadata = data.get("usageMetadata", {})
+                usage = None
+                if usage_metadata:
+                    usage = {
+                        "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
+                        "candidates_tokens": usage_metadata.get("candidatesTokenCount", 0),
+                        "total_tokens": usage_metadata.get("totalTokenCount", 0)
+                    }
+
+                return {
+                    "success": True,
+                    "text": text,
+                    "model": model,
+                    "finish_reason": finish_reason,
+                    "duration_ms": elapsed_ms,
+                    "usage": usage,
+                    "attempts": attempts
+                }
+
+        except urllib.error.HTTPError as e:
             elapsed_ms = round((time.perf_counter() - start_time) * 1000)
-            res_body = resp.read().decode("utf-8")
-            data = json.loads(res_body)
+            try:
+                err_body = e.read().decode("utf-8")
+                err_json = json.loads(err_body)
+                raw_msg = err_json.get("error", {}).get("message", str(e))
+                status_code = err_json.get("error", {}).get("code", e.code)
+            except Exception:
+                raw_msg = str(e)
+                status_code = e.code
 
-            candidates = data.get("candidates", [])
-            if not candidates:
-                # Check for prompt feedback block
-                feedback = data.get("promptFeedback", {})
-                block_reason = feedback.get("blockReason", "No response candidates returned.")
-                return {
-                    "success": False,
-                    "error": f"Content was filtered by Gemini safety system: {block_reason}",
-                    "statusCode": 200,
-                    "duration_ms": elapsed_ms,
-                    "model": model
-                }
+            clean_msg = sanitize_error_message(raw_msg, api_key)
 
-            first_candidate = candidates[0]
-            finish_reason = first_candidate.get("finishReason", "STOP")
-            parts = first_candidate.get("content", {}).get("parts", [])
-            text = "".join(part.get("text", "") for part in parts)
+            # Determine if transient and retryable
+            is_transient = status_code in (500, 503, 504)
+            if is_transient and attempts < total_allowed:
+                time.sleep(1.5)
+                continue
 
-            if finish_reason == "SAFETY":
-                return {
-                    "success": False,
-                    "error": "Response was blocked due to Gemini safety policies.",
-                    "statusCode": 200,
-                    "duration_ms": elapsed_ms,
-                    "model": model
-                }
-
-            usage_metadata = data.get("usageMetadata", {})
-            usage = None
-            if usage_metadata:
-                usage = {
-                    "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
-                    "candidates_tokens": usage_metadata.get("candidatesTokenCount", 0),
-                    "total_tokens": usage_metadata.get("totalTokenCount", 0)
-                }
+            if status_code in (400, 401, 403) and ("API key" in clean_msg or "INVALID_ARGUMENT" in clean_msg or "PERMISSION_DENIED" in clean_msg or status_code == 403):
+                friendly = "Invalid or inactive Gemini API key. Please check your key in Google AI Studio and ensure it is saved correctly."
+                retryable = False
+            elif status_code == 404:
+                friendly = f"Gemini model '{model}' was not found or is no longer available on this endpoint. Please select a supported model such as {DEFAULT_MODEL_ID}."
+                retryable = False
+            elif status_code == 429:
+                friendly = f"Gemini quota or rate limit exceeded for model '{model}'. Please wait a moment before sending another request, or check your quota in Google AI Studio."
+                retryable = False
+            elif status_code in (500, 503, 504):
+                friendly = f"Google Gemini service is temporarily overloaded for model '{model}' ({status_code} Service Unavailable). Spikes in demand are temporary; please retry in a few moments or switch to a faster model like {DEFAULT_MODEL_ID}."
+                retryable = True
+            else:
+                friendly = f"Gemini API error ({status_code}): {clean_msg}"
+                retryable = False
 
             return {
-                "success": True,
-                "text": text,
-                "model": model,
-                "finish_reason": finish_reason,
+                "success": False,
+                "error": friendly,
+                "raw_error": clean_msg,
+                "statusCode": status_code,
                 "duration_ms": elapsed_ms,
-                "usage": usage
+                "model": model,
+                "retryable": retryable,
+                "attempts": attempts
             }
 
-    except urllib.error.HTTPError as e:
-        elapsed_ms = round((time.perf_counter() - start_time) * 1000)
-        try:
-            err_body = e.read().decode("utf-8")
-            err_json = json.loads(err_body)
-            raw_msg = err_json.get("error", {}).get("message", str(e))
-            status_code = err_json.get("error", {}).get("code", e.code)
-        except Exception:
-            raw_msg = str(e)
-            status_code = e.code
+        except (urllib.error.URLError, TimeoutError) as e:
+            elapsed_ms = round((time.perf_counter() - start_time) * 1000)
+            if attempts < total_allowed:
+                time.sleep(1.5)
+                continue
 
-        clean_msg = sanitize_error_message(raw_msg, api_key)
+            reason_text = getattr(e, 'reason', str(e))
+            clean_reason = sanitize_error_message(str(reason_text), api_key)
+            return {
+                "success": False,
+                "error": f"Network connection error: Unable to reach Google Gemini API ({clean_reason}). Please verify your internet connection.",
+                "statusCode": 504 if isinstance(e, TimeoutError) else 0,
+                "duration_ms": elapsed_ms,
+                "model": model,
+                "retryable": True,
+                "attempts": attempts
+            }
 
-        # Map to friendly beginner explanations
-        if status_code in (400, 401, 403) and ("API key" in clean_msg or "INVALID_ARGUMENT" in clean_msg or status_code == 403):
-            friendly = "Invalid or inactive Gemini API key. Please check your key in Google AI Studio and ensure it is saved correctly."
-        elif status_code == 429:
-            friendly = "Gemini quota or rate limit exceeded. Please wait a moment before sending another request, or check your quota in Google AI Studio."
-        elif status_code >= 500:
-            friendly = "Google Gemini service encountered a temporary server error. Please retry in a few moments."
-        else:
-            friendly = f"Gemini API error ({status_code}): {clean_msg}"
-
-        return {
-            "success": False,
-            "error": friendly,
-            "raw_error": clean_msg,
-            "statusCode": status_code,
-            "duration_ms": elapsed_ms,
-            "model": model
-        }
-
-    except urllib.error.URLError as e:
-        elapsed_ms = round((time.perf_counter() - start_time) * 1000)
-        return {
-            "success": False,
-            "error": f"Network connection error: Unable to reach Google Gemini API ({sanitize_error_message(str(e.reason), api_key)}). Please verify your internet connection.",
-            "statusCode": 0,
-            "duration_ms": elapsed_ms,
-            "model": model
-        }
-    except TimeoutError:
-        elapsed_ms = round((time.perf_counter() - start_time) * 1000)
-        return {
-            "success": False,
-            "error": "Request timed out after 30 seconds. Gemini took too long to respond.",
-            "statusCode": 408,
-            "duration_ms": elapsed_ms,
-            "model": model
-        }
-    except Exception as e:
-        elapsed_ms = round((time.perf_counter() - start_time) * 1000)
-        return {
-            "success": False,
-            "error": f"An unexpected error occurred: {sanitize_error_message(str(e), api_key)}",
-            "statusCode": 500,
-            "duration_ms": elapsed_ms,
-            "model": model
-        }
+        except Exception as e:
+            elapsed_ms = round((time.perf_counter() - start_time) * 1000)
+            return {
+                "success": False,
+                "error": f"An unexpected error occurred: {sanitize_error_message(str(e), api_key)}",
+                "statusCode": 500,
+                "duration_ms": elapsed_ms,
+                "model": model,
+                "retryable": False,
+                "attempts": attempts
+            }
 
 
 class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
