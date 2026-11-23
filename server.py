@@ -24,16 +24,16 @@ PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 SUPPORTED_MODELS = [
     {
-        "id": "gemini-3.1-flash-lite",
-        "name": "Gemini 3.1 Flash Lite",
-        "recommended": True,
-        "description": "Fastest, lightweight, and most responsive model for prompt testing."
-    },
-    {
         "id": "gemini-3.5-flash-lite",
         "name": "Gemini 3.5 Flash Lite",
+        "recommended": True,
+        "description": "High-speed, stable multimodal generation and prompt testing."
+    },
+    {
+        "id": "gemini-3.1-flash-lite",
+        "name": "Gemini 3.1 Flash Lite",
         "recommended": False,
-        "description": "High-speed multimodal generation and structured output."
+        "description": "Lightweight model for quick testing."
     },
     {
         "id": "gemini-3.8-flash",
@@ -49,7 +49,7 @@ SUPPORTED_MODELS = [
     }
 ]
 
-DEFAULT_MODEL_ID = "gemini-3.1-flash-lite"
+DEFAULT_MODEL_ID = "gemini-3.5-flash-lite"
 
 
 def sanitize_error_message(msg: str, key: Optional[str] = None) -> str:

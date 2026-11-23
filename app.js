@@ -14,7 +14,7 @@
   const state = {
     apiKey: '',
     rememberKey: false,
-    selectedModel: 'gemini-3.1-flash-lite',
+    selectedModel: 'gemini-3.5-flash-lite',
     originalPrompt: '',
     options: {
       audience: '',
