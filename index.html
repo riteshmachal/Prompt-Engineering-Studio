@@ -136,6 +136,12 @@
             <span class="stepper-label">Compare Gemini responses</span>
           </a>
         </li>
+        <li class="stepper-item" id="step-nav-5">
+          <a href="#stage-5" class="stepper-link">
+            <span class="stepper-badge">5</span>
+            <span class="stepper-label">Prompt Battle</span>
+          </a>
+        </li>
       </ol>
     </nav>
 
@@ -589,8 +595,22 @@
           </div>
 
           <div class="comparison-run-wrap">
-            <div class="active-model-indicator">
-              <span class="model-pill" id="active-model-display">Model: gemini-3.5-flash-lite</span>
+            <div class="model-selector-group">
+              <label for="stage4-model-select" class="model-select-label">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                </svg>
+                <span>Gemini Model:</span>
+              </label>
+              <select id="stage4-model-select" class="form-control model-select-dropdown" aria-label="Select Gemini Model for Stage 4 Comparison">
+                <option value="gemini-3.5-flash-lite" selected>Gemini 3.5 Flash Lite (gemini-3.5-flash-lite) — Recommended</option>
+                <option value="gemini-flash-lite-latest">Gemini Flash-Lite Latest (gemini-flash-lite-latest)</option>
+                <option value="gemini-3-flash-preview">Gemini 3 Flash Preview (gemini-3-flash-preview)</option>
+                <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (gemini-3.1-flash-lite)</option>
+                <option value="gemini-3.8-flash">Gemini 3.8 Flash (gemini-3.8-flash)</option>
+                <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview (gemini-3.1-pro-preview)</option>
+              </select>
+              <span class="model-pill hidden" id="active-model-display">Model: gemini-3.5-flash-lite</span>
             </div>
             <button type="button" id="btn-run-comparison" class="btn btn-gemini btn-lg">
               <svg class="sparkle-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -693,6 +713,349 @@
       </div>
     </section>
 
+    <!-- STAGE 5: Prompt Battle -->
+    <section class="stage-section" id="stage-5" aria-labelledby="stage-5-heading">
+      <div class="stage-header">
+        <div class="stage-badge-wrap">
+          <span class="stage-indicator stage-indicator-battle">Stage 5</span>
+          <h2 id="stage-5-heading" class="stage-title">Prompt Battle: Head-to-Head Comparison</h2>
+        </div>
+        <p class="stage-desc">
+          Pit two prompt variations against each other with the exact same Gemini model and settings to discover which technique delivers the more effective, structured, and helpful response.
+        </p>
+      </div>
+
+      <div class="card stage-card battle-card">
+
+        <!-- Educational Explanation & Realistic Example Callout -->
+        <div class="battle-guide-box" role="region" aria-label="About Prompt Battle">
+          <div class="battle-guide-header">
+            <div class="battle-guide-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+            </div>
+            <div>
+              <h3 class="battle-guide-title">How Prompt Battle Works</h3>
+              <p class="battle-guide-subtitle">
+                Prompt Battle evaluates how phrasing, constraints, and instructions guide Gemini's generation.
+                It compares <em>instruction adherence, clarity, structure, and formatting</em>; it does not prove which response is factually correct.
+              </p>
+            </div>
+          </div>
+
+          <div class="battle-example-grid">
+            <div class="battle-example-col">
+              <span class="example-tag tag-a">Prompt A Example (Vague)</span>
+              <p class="example-text">"Explain climate change."</p>
+              <span class="example-critique">Produces a broad, unpredictable essay without target audience or length limits.</span>
+            </div>
+            <div class="battle-example-divider">VS</div>
+            <div class="battle-example-col">
+              <span class="example-tag tag-b">Prompt B Example (Engineered)</span>
+              <p class="example-text">"You are an encouraging science teacher. Explain climate change to a 12-year-old in 3 bullet points with bold headers under 90 words."</p>
+              <span class="example-critique">Produces an accessible, disciplined, classroom-ready response that is easy to evaluate.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Preset Loaders -->
+        <div class="battle-presets-bar">
+          <span class="preset-label">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+            </svg>
+            Quick Battle Loaders:
+          </span>
+          <div class="preset-buttons">
+            <button type="button" class="btn btn-chip" id="btn-battle-load-studio">
+              Load Original (A) vs Master Prompt (B)
+            </button>
+            <button type="button" class="btn btn-chip" id="btn-battle-sample-climate">
+              Sample: Vague vs Role & Constraints
+            </button>
+            <button type="button" class="btn btn-chip" id="btn-battle-sample-code">
+              Sample: Simple Question vs Step-by-Step Code Review
+            </button>
+            <button type="button" class="btn btn-ghost btn-xs" id="btn-battle-swap" title="Swap Prompt A and Prompt B">
+              ⇄ Swap Prompts
+            </button>
+          </div>
+        </div>
+
+        <!-- Dual Prompt Inputs (Prompt A & Prompt B) -->
+        <div class="battle-prompts-grid">
+
+          <!-- PROMPT A COLUMN -->
+          <div class="battle-prompt-card prompt-card-a">
+            <div class="battle-card-top">
+              <div class="battle-card-badge-wrap">
+                <span class="badge-fighter badge-fighter-a">Prompt A</span>
+                <span class="battle-card-role-label" id="battle-prompt-a-source-label">Manual / Custom Prompt</span>
+              </div>
+              <div class="battle-card-quick-actions">
+                <button type="button" class="btn btn-link btn-xs" id="btn-battle-load-original-a">
+                  Use Original Prompt
+                </button>
+              </div>
+            </div>
+
+            <div class="form-group mb-0">
+              <div class="label-row">
+                <label for="battle-prompt-a-input" class="form-label required-label">Prompt A Text</label>
+                <span class="char-counter" id="battle-counter-a">0 words | 0 chars</span>
+              </div>
+              <textarea
+                id="battle-prompt-a-input"
+                class="form-control prompt-textarea battle-textarea"
+                rows="5"
+                placeholder="Type or paste the first prompt to compare..."
+                aria-describedby="battle-a-hint"
+              ></textarea>
+              <span id="battle-a-hint" class="input-subhint">Review and edit freely before starting the battle.</span>
+            </div>
+          </div>
+
+          <!-- PROMPT B COLUMN -->
+          <div class="battle-prompt-card prompt-card-b">
+            <div class="battle-card-top">
+              <div class="battle-card-badge-wrap">
+                <span class="badge-fighter badge-fighter-b">Prompt B</span>
+                <span class="battle-card-role-label" id="battle-prompt-b-source-label">Manual / Custom Prompt</span>
+              </div>
+              <div class="battle-card-quick-actions">
+                <select id="battle-load-enhanced-select" class="form-control form-control-xs" aria-label="Select from Stage 3 Enhanced Prompts">
+                  <option value="">Load an enhanced prompt...</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group mb-0">
+              <div class="label-row">
+                <label for="battle-prompt-b-input" class="form-label required-label">Prompt B Text</label>
+                <span class="char-counter" id="battle-counter-b">0 words | 0 chars</span>
+              </div>
+              <textarea
+                id="battle-prompt-b-input"
+                class="form-control prompt-textarea battle-textarea"
+                rows="5"
+                placeholder="Type or paste the second prompt to compare..."
+                aria-describedby="battle-b-hint"
+              ></textarea>
+              <span id="battle-b-hint" class="input-subhint">Review and edit freely before starting the battle.</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Battle Model Selector & Run Control Bar -->
+        <div class="battle-control-bar">
+          <div class="battle-model-picker-wrap">
+            <label for="battle-model-select" class="control-label">Gemini Model:</label>
+            <select id="battle-model-select" class="form-control model-select-dropdown" aria-label="Gemini Model for Battle">
+              <option value="gemini-3.5-flash-lite" selected>Gemini 3.5 Flash Lite (gemini-3.5-flash-lite) — Recommended</option>
+              <option value="gemini-flash-lite-latest">Gemini Flash-Lite Latest (gemini-flash-lite-latest)</option>
+              <option value="gemini-3-flash-preview">Gemini 3 Flash Preview (gemini-3-flash-preview)</option>
+              <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (gemini-3.1-flash-lite)</option>
+              <option value="gemini-3.8-flash">Gemini 3.8 Flash (gemini-3.8-flash)</option>
+              <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview (gemini-3.1-pro-preview)</option>
+            </select>
+            <span class="control-subtext">Both prompts are sent to this identical model and settings for a fair comparison.</span>
+          </div>
+
+          <div class="battle-action-wrap">
+            <button type="button" id="btn-start-battle" class="btn btn-terracotta btn-lg">
+              <svg class="battle-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14.5 17.5L3 6V3h3l11.5 11.5"/>
+                <path d="M13 19l6-6"/>
+                <path d="M16 16l4 4"/>
+                <path d="M19 21l2-2"/>
+              </svg>
+              <span id="btn-start-battle-text">Start Prompt Battle</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Battle Missing Key Banner -->
+        <div id="battle-missing-key-banner" class="alert-banner alert-warning hidden" role="alert">
+          <div class="alert-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <div class="alert-body">
+            <h4 class="alert-title">Gemini API Key Required for Prompt Battle</h4>
+            <p class="alert-desc">
+              Please enter and save your Gemini API key in the settings to send live battle requests to Google Gemini.
+            </p>
+            <div class="alert-cta-row">
+              <button type="button" class="btn btn-sm btn-dark" id="btn-battle-enter-key">Enter API Key</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Battle Validation / Error Alert -->
+        <div id="battle-validation-msg" class="validation-msg error-msg hidden" role="alert"></div>
+
+        <!-- Battle Progress / Loading State -->
+        <div id="battle-progress-wrap" class="comparison-progress-wrap hidden">
+          <div class="progress-bar-container">
+            <div id="battle-progress-bar" class="progress-bar-fill"></div>
+          </div>
+          <div class="progress-status-text" id="battle-progress-text">Sending Prompt A and Prompt B to Gemini...</div>
+        </div>
+
+        <!-- Battle Empty State -->
+        <div id="battle-empty-state" class="empty-state-card nested-empty">
+          <div class="empty-state-icon">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="2" y="3" width="20" height="18" rx="2"/>
+              <line x1="12" y1="3" x2="12" y2="21"/>
+            </svg>
+          </div>
+          <h3 class="empty-state-title">Side-by-side battle results will appear here</h3>
+          <p class="empty-state-desc">Enter or load your two prompt variations above, select your model, and click <strong>Start Prompt Battle</strong> to generate and compare.</p>
+        </div>
+
+        <!-- Battle Results Grid (Responses Side by Side) -->
+        <div id="battle-results-grid" class="battle-results-grid hidden" aria-live="polite">
+
+          <!-- RESPONSE CARD A -->
+          <div class="battle-response-card" id="battle-response-card-a">
+            <div class="battle-resp-header resp-header-a">
+              <div class="resp-title-wrap">
+                <span class="badge-fighter badge-fighter-a">Response A</span>
+                <span class="badge-model" id="battle-resp-model-a">gemini-3.5-flash-lite</span>
+              </div>
+              <div class="resp-meta" id="battle-resp-meta-a">
+                <span class="resp-duration" id="battle-resp-duration-a">-- ms</span>
+                <span class="resp-tokens" id="battle-resp-tokens-a">-- tokens</span>
+              </div>
+            </div>
+
+            <details class="prompt-snapshot-details">
+              <summary>Show Prompt A used</summary>
+              <div class="prompt-snapshot-text" id="battle-snapshot-a"></div>
+            </details>
+
+            <div class="battle-resp-body" id="battle-resp-body-a">
+              <!-- Text or Error Banner -->
+            </div>
+
+            <div class="battle-resp-footer">
+              <button type="button" class="btn btn-ghost btn-xs btn-copy" id="btn-copy-battle-a">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span>Copy Response A</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- RESPONSE CARD B -->
+          <div class="battle-response-card" id="battle-response-card-b">
+            <div class="battle-resp-header resp-header-b">
+              <div class="resp-title-wrap">
+                <span class="badge-fighter badge-fighter-b">Response B</span>
+                <span class="badge-model" id="battle-resp-model-b">gemini-3.5-flash-lite</span>
+              </div>
+              <div class="resp-meta" id="battle-resp-meta-b">
+                <span class="resp-duration" id="battle-resp-duration-b">-- ms</span>
+                <span class="resp-tokens" id="battle-resp-tokens-b">-- tokens</span>
+              </div>
+            </div>
+
+            <details class="prompt-snapshot-details">
+              <summary>Show Prompt B used</summary>
+              <div class="prompt-snapshot-text" id="battle-snapshot-b"></div>
+            </details>
+
+            <div class="battle-resp-body" id="battle-resp-body-b">
+              <!-- Text or Error Banner -->
+            </div>
+
+            <div class="battle-resp-footer">
+              <button type="button" class="btn btn-ghost btn-xs btn-copy" id="btn-copy-battle-b">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span>Copy Response B</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Battle Judgement / Voting Panel -->
+        <div id="battle-judgement-panel" class="battle-judgement-panel hidden">
+          <div class="judgement-header">
+            <div class="judgement-title-wrap">
+              <span class="badge badge-terracotta">Your Verdict</span>
+              <h3 class="judgement-title">Which response was more useful?</h3>
+            </div>
+            <p class="judgement-desc">
+              Compare the two responses side by side. Consider clarity, specificity, structural formatting, and how well each prompt met your intended goal.
+            </p>
+          </div>
+
+          <!-- Voting Options -->
+          <div class="verdict-options" role="radiogroup" aria-label="Prompt Battle Winner Selection">
+            <label class="verdict-card" for="verdict-a">
+              <input type="radio" name="battle-verdict" id="verdict-a" value="Prompt A">
+              <div class="verdict-card-body">
+                <div class="verdict-icon icon-a">🏆</div>
+                <div class="verdict-label">Prompt A was more useful</div>
+                <div class="verdict-hint">Clearer, better tone, or closer to expectations</div>
+              </div>
+            </label>
+
+            <label class="verdict-card" for="verdict-b">
+              <input type="radio" name="battle-verdict" id="verdict-b" value="Prompt B">
+              <div class="verdict-card-body">
+                <div class="verdict-icon icon-b">🏆</div>
+                <div class="verdict-label">Prompt B was more useful</div>
+                <div class="verdict-hint">Better structure, disciplined constraints, or more helpful</div>
+              </div>
+            </label>
+
+            <label class="verdict-card" for="verdict-tie">
+              <input type="radio" name="battle-verdict" id="verdict-tie" value="About the same">
+              <div class="verdict-card-body">
+                <div class="verdict-icon icon-tie">🤝</div>
+                <div class="verdict-label">About the same</div>
+                <div class="verdict-hint">Both outputs were comparable in quality and usefulness</div>
+              </div>
+            </label>
+          </div>
+
+          <!-- Optional Explanation -->
+          <div class="form-group mt-3">
+            <label for="battle-explanation-input" class="form-label">
+              Explain your choice <span class="text-muted">(optional notes)</span>
+            </label>
+            <textarea
+              id="battle-explanation-input"
+              class="form-control"
+              rows="2"
+              placeholder="e.g., Prompt B had bold bullet points, stayed strictly under 100 words, and was much easier to read..."
+            ></textarea>
+            <span class="input-subhint">Recording your thoughts helps build intuition for prompt engineering techniques.</span>
+          </div>
+
+          <!-- Verdict Actions -->
+          <div class="verdict-actions">
+            <button type="button" id="btn-save-verdict" class="btn btn-primary">
+              <span>Save Battle Verdict</span>
+            </button>
+          </div>
+
+          <!-- Verdict Saved Confirmation Card -->
+          <div id="battle-verdict-summary" class="verdict-summary-card hidden">
+            <!-- Rendered after saving -->
+          </div>
+        </div>
+
+      </div>
+    </section>
+
   </main>
 
   <!-- Gemini API Key Modal -->
@@ -742,12 +1105,14 @@
         <div class="form-group">
           <label for="gemini-model-select" class="form-label">Gemini Model</label>
           <select id="gemini-model-select" class="form-control">
-            <option value="gemini-3.5-flash-lite" selected>Gemini 3.5 Flash Lite (Recommended: Fastest & Most Stable)</option>
-            <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (High Speed Multimodal)</option>
-            <option value="gemini-3.8-flash">Gemini 3.8 Flash (Frontier Model)</option>
-            <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview (Deep Reasoning)</option>
+            <option value="gemini-3.5-flash-lite" selected>Gemini 3.5 Flash Lite (gemini-3.5-flash-lite) — Recommended</option>
+            <option value="gemini-flash-lite-latest">Gemini Flash-Lite Latest (gemini-flash-lite-latest)</option>
+            <option value="gemini-3-flash-preview">Gemini 3 Flash Preview (gemini-3-flash-preview)</option>
+            <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (gemini-3.1-flash-lite)</option>
+            <option value="gemini-3.8-flash">Gemini 3.8 Flash (gemini-3.8-flash)</option>
+            <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview (gemini-3.1-pro-preview)</option>
           </select>
-          <span class="input-subhint">This single model will be used across all prompt comparisons for an objective evaluation.</span>
+          <span class="input-subhint">This model will be used across prompt comparisons and prompt battles for fair evaluation.</span>
         </div>
 
         <!-- Storage Preference Checkbox -->

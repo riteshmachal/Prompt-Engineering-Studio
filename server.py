@@ -27,7 +27,19 @@ SUPPORTED_MODELS = [
         "id": "gemini-3.5-flash-lite",
         "name": "Gemini 3.5 Flash Lite",
         "recommended": True,
-        "description": "High-speed, stable multimodal generation and prompt testing."
+        "description": "High-speed, stable multimodal generation (Recommended default)."
+    },
+    {
+        "id": "gemini-flash-lite-latest",
+        "name": "Gemini Flash-Lite Latest",
+        "recommended": False,
+        "description": "Official rolling alias for lowest-latency generation."
+    },
+    {
+        "id": "gemini-3-flash-preview",
+        "name": "Gemini 3 Flash Preview",
+        "recommended": False,
+        "description": "Next-gen balanced speed and multimodal reasoning."
     },
     {
         "id": "gemini-3.1-flash-lite",
@@ -50,6 +62,63 @@ SUPPORTED_MODELS = [
 ]
 
 DEFAULT_MODEL_ID = "gemini-3.5-flash-lite"
+
+
+def fetch_live_models_from_gemini(api_key: str) -> List[Dict[str, Any]]:
+    """Retrieve verified models from the official Google Gemini API using the provided API key."""
+    if not api_key or not api_key.strip():
+        return SUPPORTED_MODELS
+
+    clean_key = api_key.strip()
+    endpoint = "https://generativelanguage.googleapis.com/v1beta/models"
+    headers = {
+        "x-goog-api-key": clean_key
+    }
+    open_kwargs = {"timeout": 6}
+    try:
+        import ssl
+        open_kwargs["context"] = ssl._create_unverified_context()
+    except Exception:
+        pass
+
+    try:
+        req = urllib.request.Request(endpoint, headers=headers, method="GET")
+        with urllib.request.urlopen(req, **open_kwargs) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            raw_models = data.get("models", [])
+            valid_models = []
+
+            for m in raw_models:
+                methods = m.get("supportedGenerationMethods", [])
+                if "generateContent" not in methods:
+                    continue
+                m_name = m.get("name", "")
+                m_id = m_name[7:] if m_name.startswith("models/") else m_name
+
+                # Filter out niche media/internal models that don't take standard text prompts
+                if any(x in m_id for x in ["-image", "-tts", "robotics", "computer-use", "clip", "transcribe", "banana"]):
+                    continue
+
+                display_name = m.get("displayName", m_id)
+                description = m.get("description", "Multimodal text generation model.")
+                if len(description) > 115:
+                    description = description[:112] + "..."
+
+                valid_models.append({
+                    "id": m_id,
+                    "name": display_name,
+                    "recommended": (m_id == DEFAULT_MODEL_ID),
+                    "description": description
+                })
+
+            if valid_models:
+                # Ensure default model is first, then recommended, then alphabetically
+                valid_models.sort(key=lambda x: (0 if x["id"] == DEFAULT_MODEL_ID else (1 if x.get("recommended") else 2), x["id"]))
+                return valid_models
+    except Exception:
+        pass
+
+    return SUPPORTED_MODELS
 
 
 def sanitize_error_message(msg: str, key: Optional[str] = None) -> str:
@@ -323,6 +392,20 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "has_server_key": server_key_present
             })
             return
+        elif url_path == "/api/gemini/models":
+            query_params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            key = query_params.get("key", [""])[0] or self.headers.get("x-goog-api-key", "")
+            if not key and self.headers.get("Authorization", "").startswith("Bearer "):
+                key = self.headers.get("Authorization", "")[7:].strip()
+            if not key:
+                key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or ""
+            models = fetch_live_models_from_gemini(key)
+            self._send_json({
+                "success": True,
+                "models": models,
+                "default_model": DEFAULT_MODEL_ID
+            })
+            return
 
         # Serve static files from PROJECT_DIR
         super().do_GET()
@@ -334,6 +417,8 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_generate()
         elif url_path == "/api/gemini/compare":
             self._handle_compare()
+        elif url_path == "/api/gemini/models":
+            self._handle_models()
         else:
             self._send_json({"error": "Endpoint not found"}, status=404)
 
@@ -456,6 +541,12 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
                     }
 
         self._send_json({"success": True, "results": results, "model": model})
+
+    def _handle_models(self):
+        data = self._read_json_body() or {}
+        api_key = self._get_api_key_from_request(data)
+        models = fetch_live_models_from_gemini(api_key)
+        self._send_json({"success": True, "models": models, "default_model": DEFAULT_MODEL_ID})
 
 
 def find_available_port(start_port: int, max_attempts: int = 15) -> int:

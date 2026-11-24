@@ -15,6 +15,14 @@
     apiKey: '',
     rememberKey: false,
     selectedModel: 'gemini-3.5-flash-lite',
+    availableModels: [
+      { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite', recommended: true },
+      { id: 'gemini-flash-lite-latest', name: 'Gemini Flash-Lite Latest', recommended: false },
+      { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview', recommended: false },
+      { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', recommended: false },
+      { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', recommended: false },
+      { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro Preview', recommended: false }
+    ],
     originalPrompt: '',
     options: {
       audience: '',
@@ -28,7 +36,16 @@
     selectedTechniques: new Set(['clear_task', 'role', 'constraints']),
     enhancedPrompts: [],
     comparisonResults: [],
-    isRunningComparison: false
+    isRunningComparison: false,
+    battle: {
+      promptA: '',
+      promptB: '',
+      isRunning: false,
+      resultA: null,
+      resultB: null,
+      verdict: '',
+      explanation: ''
+    }
   };
 
   // Preset Sample Data
@@ -124,6 +141,7 @@
     comparisonReadyNote: document.getElementById('comparison-ready-note'),
 
     // Stage 4
+    stage4ModelSelect: document.getElementById('stage4-model-select'),
     activeModelDisplay: document.getElementById('active-model-display'),
     btnRunComparison: document.getElementById('btn-run-comparison'),
     btnRunComparisonText: document.getElementById('btn-run-comparison-text'),
@@ -137,6 +155,50 @@
     observableDifferencesPanel: document.getElementById('observable-differences-panel'),
     differencesTbody: document.getElementById('differences-tbody'),
     learningsContent: document.getElementById('learnings-content'),
+
+    // Stage 5: Prompt Battle
+    battleModelSelect: document.getElementById('battle-model-select'),
+    battlePromptAInput: document.getElementById('battle-prompt-a-input'),
+    battlePromptBInput: document.getElementById('battle-prompt-b-input'),
+    battleCounterA: document.getElementById('battle-counter-a'),
+    battleCounterB: document.getElementById('battle-counter-b'),
+    battleSourceA: document.getElementById('battle-prompt-a-source-label'),
+    battleSourceB: document.getElementById('battle-prompt-b-source-label'),
+    btnBattleLoadStudio: document.getElementById('btn-battle-load-studio'),
+    btnBattleSampleClimate: document.getElementById('btn-battle-sample-climate'),
+    btnBattleSampleCode: document.getElementById('btn-battle-sample-code'),
+    btnBattleSwap: document.getElementById('btn-battle-swap'),
+    btnBattleLoadOriginalA: document.getElementById('btn-battle-load-original-a'),
+    battleLoadEnhancedSelect: document.getElementById('battle-load-enhanced-select'),
+    btnStartBattle: document.getElementById('btn-start-battle'),
+    btnStartBattleText: document.getElementById('btn-start-battle-text'),
+    battleMissingKeyBanner: document.getElementById('battle-missing-key-banner'),
+    btnBattleEnterKey: document.getElementById('btn-battle-enter-key'),
+    battleValidationMsg: document.getElementById('battle-validation-msg'),
+    battleProgressWrap: document.getElementById('battle-progress-wrap'),
+    battleProgressBar: document.getElementById('battle-progress-bar'),
+    battleProgressText: document.getElementById('battle-progress-text'),
+    battleEmptyState: document.getElementById('battle-empty-state'),
+    battleResultsGrid: document.getElementById('battle-results-grid'),
+    battleRespCardA: document.getElementById('battle-response-card-a'),
+    battleRespCardB: document.getElementById('battle-response-card-b'),
+    battleRespModelA: document.getElementById('battle-resp-model-a'),
+    battleRespModelB: document.getElementById('battle-resp-model-b'),
+    battleRespDurationA: document.getElementById('battle-resp-duration-a'),
+    battleRespDurationB: document.getElementById('battle-resp-duration-b'),
+    battleRespTokensA: document.getElementById('battle-resp-tokens-a'),
+    battleRespTokensB: document.getElementById('battle-resp-tokens-b'),
+    battleSnapshotA: document.getElementById('battle-snapshot-a'),
+    battleSnapshotB: document.getElementById('battle-snapshot-b'),
+    battleRespBodyA: document.getElementById('battle-resp-body-a'),
+    battleRespBodyB: document.getElementById('battle-resp-body-b'),
+    btnCopyBattleA: document.getElementById('btn-copy-battle-a'),
+    btnCopyBattleB: document.getElementById('btn-copy-battle-b'),
+    battleJudgementPanel: document.getElementById('battle-judgement-panel'),
+    battleVerdictRadios: document.querySelectorAll('input[name="battle-verdict"]'),
+    battleExplanationInput: document.getElementById('battle-explanation-input'),
+    btnSaveVerdict: document.getElementById('btn-save-verdict'),
+    battleVerdictSummary: document.getElementById('battle-verdict-summary'),
 
     // Modals
     apiKeyModal: document.getElementById('api-key-modal'),
@@ -172,9 +234,86 @@
     attachEventListeners();
     updateCharCounter();
     updateTechSelectionCount();
+    updateBattleCounters();
 
-    // Check if server provides default config
+    // Check if server provides default config and live models
     checkServerConfig();
+    fetchAvailableModels(state.apiKey);
+  }
+
+  function populateModelSelectors(models) {
+    if (!models || !models.length) return;
+    state.availableModels = models;
+    const selects = [dom.stage4ModelSelect, dom.battleModelSelect, dom.geminiModelSelect];
+    selects.forEach(sel => {
+      if (!sel) return;
+      const prevVal = sel.value || state.selectedModel;
+      sel.innerHTML = '';
+      models.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = `${m.name} (${m.id})${m.recommended ? ' — Recommended' : ''}`;
+        if (m.id === prevVal) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      if (state.selectedModel) {
+        sel.value = state.selectedModel;
+      }
+    });
+  }
+
+  function syncSelectedModel(newModel, showToastNotification = false) {
+    if (!newModel || typeof newModel !== 'string') return;
+    const clean = newModel.trim();
+    state.selectedModel = clean;
+
+    if (dom.stage4ModelSelect) dom.stage4ModelSelect.value = clean;
+    if (dom.battleModelSelect) dom.battleModelSelect.value = clean;
+    if (dom.geminiModelSelect) dom.geminiModelSelect.value = clean;
+    if (dom.activeModelDisplay) dom.activeModelDisplay.textContent = `Model: ${clean}`;
+    if (dom.battleRespModelA) dom.battleRespModelA.textContent = clean;
+    if (dom.battleRespModelB) dom.battleRespModelB.textContent = clean;
+
+    try {
+      localStorage.setItem('pes_selected_model', clean);
+    } catch (e) {}
+
+    if (showToastNotification) {
+      showToast(`Active Gemini model set to: ${clean}`, 'info', 2200);
+    }
+  }
+
+  async function fetchAvailableModels(apiKey) {
+    try {
+      const headers = {};
+      const keyToUse = apiKey || state.apiKey;
+      if (keyToUse) headers['x-goog-api-key'] = keyToUse.trim();
+      const res = await fetch('/api/gemini/models', { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.models && data.models.length) {
+          populateModelSelectors(data.models);
+          if (data.default_model && !state.selectedModel) {
+            syncSelectedModel(data.default_model);
+          }
+          return;
+        }
+      }
+    } catch (e) {}
+
+    // Fallback to /api/config
+    try {
+      const res = await fetch('/api/config');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.models && data.models.length) {
+          populateModelSelectors(data.models);
+          if (data.default_model && !state.selectedModel) {
+            syncSelectedModel(data.default_model);
+          }
+        }
+      }
+    } catch (e) {}
   }
 
   function loadSavedSettings() {
@@ -191,18 +330,17 @@
         }
       }
 
-      // Check saved model and validate against supported active models
-      const validModels = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-3.1-pro-preview'];
+      // Check saved model preference
       const savedModel = localStorage.getItem('pes_selected_model');
-      if (savedModel && validModels.includes(savedModel) && savedModel !== 'gemini-3.1-flash-lite') {
+      if (savedModel && savedModel !== 'gemini-3.1-flash-lite') {
         state.selectedModel = savedModel;
       } else {
-        // Automatically default/migrate to the verified, responsive model
         state.selectedModel = 'gemini-3.5-flash-lite';
         try { localStorage.setItem('pes_selected_model', 'gemini-3.5-flash-lite'); } catch (e) {}
       }
-      dom.geminiModelSelect.value = state.selectedModel;
-      dom.activeModelDisplay.textContent = `Model: ${state.selectedModel}`;
+
+      populateModelSelectors(state.availableModels);
+      syncSelectedModel(state.selectedModel, false);
     } catch (e) {
       console.warn('Could not read from localStorage:', e);
     }
@@ -213,20 +351,18 @@
       const res = await fetch('/api/config');
       if (res.ok) {
         const data = await res.json();
+        if (data.models && data.models.length) {
+          populateModelSelectors(data.models);
+        }
         if (data.default_model && (!state.selectedModel || state.selectedModel === 'gemini-3.1-flash-lite')) {
-          state.selectedModel = data.default_model;
-          dom.geminiModelSelect.value = state.selectedModel;
-          dom.activeModelDisplay.textContent = `Model: ${state.selectedModel}`;
+          syncSelectedModel(data.default_model);
         }
         if (data.has_server_key && !state.apiKey) {
-          // Server has a configured key
           dom.apiStatusDot.className = 'status-dot dot-active';
           dom.apiStatusText.textContent = 'Server Key Active';
         }
       }
-    } catch (e) {
-      // Running standalone or static
-    }
+    } catch (e) {}
   }
 
   function updateApiStatusDisplay() {
@@ -236,12 +372,16 @@
       dom.apiStatusText.textContent = `Key: ${masked}`;
       dom.btnRemoveKey.classList.remove('hidden');
       dom.missingKeyBanner.classList.add('hidden');
+      if (dom.battleMissingKeyBanner) dom.battleMissingKeyBanner.classList.add('hidden');
     } else {
       dom.apiStatusDot.className = 'status-dot dot-inactive';
       dom.apiStatusText.textContent = 'No API Key Saved';
       dom.btnRemoveKey.classList.add('hidden');
     }
-    dom.activeModelDisplay.textContent = `Model: ${state.selectedModel}`;
+    if (dom.activeModelDisplay) dom.activeModelDisplay.textContent = `Model: ${state.selectedModel}`;
+    if (dom.stage4ModelSelect) dom.stage4ModelSelect.value = state.selectedModel;
+    if (dom.battleModelSelect) dom.battleModelSelect.value = state.selectedModel;
+    if (dom.geminiModelSelect) dom.geminiModelSelect.value = state.selectedModel;
   }
 
   // -------------------------------------------------------------------------
@@ -311,11 +451,11 @@
 
     state.apiKey = rawKey;
     state.rememberKey = dom.chkRememberKey.checked;
-    state.selectedModel = dom.geminiModelSelect.value;
+    const chosenModel = dom.geminiModelSelect.value || state.selectedModel;
 
     try {
       localStorage.setItem('pes_remember_key', state.rememberKey ? 'true' : 'false');
-      localStorage.setItem('pes_selected_model', state.selectedModel);
+      localStorage.setItem('pes_selected_model', chosenModel);
       if (state.rememberKey) {
         localStorage.setItem('pes_api_key', state.apiKey);
       } else {
@@ -324,6 +464,9 @@
     } catch (e) {
       console.warn('Could not write to localStorage:', e);
     }
+
+    syncSelectedModel(chosenModel);
+    fetchAvailableModels(state.apiKey);
 
     dom.keyValidationFeedback.className = 'validation-msg success-msg';
     dom.keyValidationFeedback.textContent = 'API key saved successfully!';
@@ -791,11 +934,13 @@
     });
 
     updateComparisonReadyNote();
+    updateBattleEnhancedDropdown();
   }
 
   function updateComparisonReadyNote() {
     const included = state.enhancedPrompts.filter(p => p.includeInComparison).length;
     dom.comparisonReadyNote.textContent = `${included} enhanced prompt${included !== 1 ? 's' : ''} selected for comparison.`;
+    updateBattleEnhancedDropdown();
   }
 
   // -------------------------------------------------------------------------
@@ -855,6 +1000,9 @@
       showToast('Please select at least one prompt to test.', 'error');
       return;
     }
+
+    const modelToUse = (dom.stage4ModelSelect?.value || state.selectedModel || 'gemini-3.5-flash-lite').trim();
+    syncSelectedModel(modelToUse);
 
     // Start comparison execution
     state.isRunningComparison = true;
@@ -1291,6 +1439,270 @@
   }
 
   // -------------------------------------------------------------------------
+  // Feature 1: Prompt Battle Flow
+  // -------------------------------------------------------------------------
+  function updateBattleCounters() {
+    const textA = (dom.battlePromptAInput?.value || '').trim();
+    const wordsA = textA ? textA.split(/\s+/).length : 0;
+    const charsA = dom.battlePromptAInput?.value?.length || 0;
+    if (dom.battleCounterA) {
+      dom.battleCounterA.textContent = `${wordsA} word${wordsA !== 1 ? 's' : ''} | ${charsA} char${charsA !== 1 ? 's' : ''}`;
+    }
+
+    const textB = (dom.battlePromptBInput?.value || '').trim();
+    const wordsB = textB ? textB.split(/\s+/).length : 0;
+    const charsB = dom.battlePromptBInput?.value?.length || 0;
+    if (dom.battleCounterB) {
+      dom.battleCounterB.textContent = `${wordsB} word${wordsB !== 1 ? 's' : ''} | ${charsB} char${charsB !== 1 ? 's' : ''}`;
+    }
+  }
+
+  function updateBattleEnhancedDropdown() {
+    if (!dom.battleLoadEnhancedSelect) return;
+    const prev = dom.battleLoadEnhancedSelect.value;
+    dom.battleLoadEnhancedSelect.innerHTML = '<option value="">Load an enhanced prompt...</option>';
+    state.enhancedPrompts.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = `${p.name} (${countWords(p.currentPrompt)} words)`;
+      if (p.id === prev) opt.selected = true;
+      dom.battleLoadEnhancedSelect.appendChild(opt);
+    });
+  }
+
+  function loadBattlePreset(presetType) {
+    if (presetType === 'studio') {
+      readInputs();
+      if (!state.originalPrompt) {
+        showToast('Please write an original prompt in Stage 1 first.', 'info');
+        return;
+      }
+      dom.battlePromptAInput.value = state.originalPrompt;
+      if (dom.battleSourceA) dom.battleSourceA.textContent = 'Stage 1 Original Prompt';
+
+      // Master prompt or first enhanced prompt
+      const master = state.enhancedPrompts.find(p => p.id === 'combined') || state.enhancedPrompts[0];
+      if (master) {
+        dom.battlePromptBInput.value = master.currentPrompt;
+        if (dom.battleSourceB) dom.battleSourceB.textContent = `Stage 3: ${master.name}`;
+      } else {
+        dom.battlePromptBInput.value = 'You are a domain expert. Provide a concise, clear, and structured response with bold bullet headers under 120 words.';
+        if (dom.battleSourceB) dom.battleSourceB.textContent = 'Engineered Expert Template';
+      }
+      showToast('Loaded Original Prompt (A) vs Master Enhanced Prompt (B).', 'success');
+    } else if (presetType === 'climate') {
+      dom.battlePromptAInput.value = 'Explain climate change.';
+      if (dom.battleSourceA) dom.battleSourceA.textContent = 'Vague / Unconstrained Sample';
+
+      dom.battlePromptBInput.value = 'You are an encouraging middle school science teacher. Explain climate change to a 12-year-old student in 3 bullet points with bold topic headers. Keep the total explanation strictly under 90 words.';
+      if (dom.battleSourceB) dom.battleSourceB.textContent = 'Role + Audience + Constraints Sample';
+      showToast('Loaded Climate Battle: Vague vs Role & Constraints.', 'info');
+    } else if (presetType === 'code') {
+      dom.battlePromptAInput.value = 'Why is my python code slow? def find_dupes(nums): return [x for x in nums if nums.count(x) > 1]';
+      if (dom.battleSourceA) dom.battleSourceA.textContent = 'Direct Query Sample';
+
+      dom.battlePromptBInput.value = 'You are a senior Python performance engineer. Review the following function: def find_dupes(nums): return [x for x in nums if nums.count(x) > 1]. In step 1, explain the Big-O time complexity and root cause of slowness. In step 2, provide the optimized O(N) solution using a set. Keep your explanation under 120 words.';
+      if (dom.battleSourceB) dom.battleSourceB.textContent = 'Persona + Step-by-Step Code Review Sample';
+      showToast('Loaded Code Review Battle: Direct Query vs Step-by-Step.', 'info');
+    }
+
+    updateBattleCounters();
+    if (dom.battleValidationMsg) dom.battleValidationMsg.classList.add('hidden');
+  }
+
+  function swapBattlePrompts() {
+    const valA = dom.battlePromptAInput.value;
+    const valB = dom.battlePromptBInput.value;
+    dom.battlePromptAInput.value = valB;
+    dom.battlePromptBInput.value = valA;
+
+    const labelA = dom.battleSourceA ? dom.battleSourceA.textContent : '';
+    const labelB = dom.battleSourceB ? dom.battleSourceB.textContent : '';
+    if (dom.battleSourceA) dom.battleSourceA.textContent = labelB;
+    if (dom.battleSourceB) dom.battleSourceB.textContent = labelA;
+
+    updateBattleCounters();
+    showToast('Swapped Prompt A and Prompt B.', 'info');
+  }
+
+  async function startPromptBattle() {
+    if (state.battle.isRunning) return;
+
+    const promptA = (dom.battlePromptAInput?.value || '').trim();
+    const promptB = (dom.battlePromptBInput?.value || '').trim();
+
+    dom.battleValidationMsg.classList.add('hidden');
+
+    if (!promptA) {
+      dom.battleValidationMsg.textContent = 'Please enter or load Prompt A before starting the battle.';
+      dom.battleValidationMsg.classList.remove('hidden');
+      dom.battlePromptAInput.focus();
+      return;
+    }
+
+    if (!promptB) {
+      dom.battleValidationMsg.textContent = 'Please enter or load Prompt B before starting the battle.';
+      dom.battleValidationMsg.classList.remove('hidden');
+      dom.battlePromptBInput.focus();
+      return;
+    }
+
+    if (!state.apiKey || !state.apiKey.trim()) {
+      dom.battleMissingKeyBanner.classList.remove('hidden');
+      dom.battleMissingKeyBanner.scrollIntoView({ behavior: 'smooth' });
+      openModal(dom.apiKeyModal);
+      return;
+    }
+
+    const battleModel = (dom.battleModelSelect?.value || state.selectedModel || 'gemini-3.5-flash-lite').trim();
+    syncSelectedModel(battleModel);
+
+    // Lock UI during execution
+    state.battle.isRunning = true;
+    dom.btnStartBattle.disabled = true;
+    dom.btnStartBattleText.textContent = 'Battling Prompts...';
+
+    dom.battleEmptyState.classList.add('hidden');
+    dom.battleResultsGrid.classList.remove('hidden');
+    dom.battleProgressWrap.classList.remove('hidden');
+    dom.battleProgressBar.style.width = '30%';
+    dom.battleProgressText.textContent = `Sending both prompts in parallel to Gemini (${battleModel})...`;
+
+    // Reset judgement and snapshots
+    dom.battleJudgementPanel.classList.add('hidden');
+    dom.battleVerdictSummary.classList.add('hidden');
+    dom.battleVerdictRadios.forEach(r => r.checked = false);
+    if (dom.battleExplanationInput) dom.battleExplanationInput.value = '';
+    dom.battleSnapshotA.textContent = promptA;
+    dom.battleSnapshotB.textContent = promptB;
+
+    // Loading skeletons in response cards
+    dom.battleRespModelA.textContent = battleModel;
+    dom.battleRespModelB.textContent = battleModel;
+    dom.battleRespDurationA.textContent = 'Processing...';
+    dom.battleRespDurationB.textContent = 'Processing...';
+    dom.battleRespTokensA.textContent = '-- tokens';
+    dom.battleRespTokensB.textContent = '-- tokens';
+    dom.battleRespBodyA.innerHTML = '<div class="loading-spinner-wrap"><div class="spinner"></div><p>Generating response for Prompt A...</p></div>';
+    dom.battleRespBodyB.innerHTML = '<div class="loading-spinner-wrap"><div class="spinner"></div><p>Generating response for Prompt B...</p></div>';
+
+    // Execute in parallel against the SAME model and settings
+    const runA = executeGeminiRequest(promptA, battleModel, state.apiKey, (attempt, max) => {
+      dom.battleProgressText.textContent = `Retrying Prompt A (attempt ${attempt} of ${max})...`;
+    });
+
+    const runB = executeGeminiRequest(promptB, battleModel, state.apiKey, (attempt, max) => {
+      dom.battleProgressText.textContent = `Retrying Prompt B (attempt ${attempt} of ${max})...`;
+    });
+
+    let resA = null;
+    let resB = null;
+
+    try {
+      [resA, resB] = await Promise.all([runA, runB]);
+    } catch (err) {
+      console.error('Unexpected battle exception:', err);
+    }
+
+    state.battle.resultA = resA;
+    state.battle.resultB = resB;
+
+    // Render Response A (preserving it even if B fails)
+    renderBattleResponse('A', resA, battleModel);
+
+    // Render Response B (preserving it even if A fails)
+    renderBattleResponse('B', resB, battleModel);
+
+    // Complete Progress
+    dom.battleProgressBar.style.width = '100%';
+    dom.battleProgressText.textContent = 'Prompt Battle complete!';
+
+    setTimeout(() => {
+      dom.battleProgressWrap.classList.add('hidden');
+    }, 1000);
+
+    state.battle.isRunning = false;
+    dom.btnStartBattle.disabled = false;
+    dom.btnStartBattleText.textContent = 'Start Prompt Battle';
+
+    // Show Judgement Panel
+    dom.battleJudgementPanel.classList.remove('hidden');
+    dom.battleResultsGrid.scrollIntoView({ behavior: 'smooth' });
+    updateStepper(5);
+
+    showToast('Prompt Battle completed! Compare the responses side by side.', 'success');
+  }
+
+  function renderBattleResponse(fighter, result, model) {
+    const isA = fighter === 'A';
+    const bodyEl = isA ? dom.battleRespBodyA : dom.battleRespBodyB;
+    const durEl = isA ? dom.battleRespDurationA : dom.battleRespDurationB;
+    const tokEl = isA ? dom.battleRespTokensA : dom.battleRespTokensB;
+    const modEl = isA ? dom.battleRespModelA : dom.battleRespModelB;
+
+    modEl.textContent = (result && result.model) ? result.model : model;
+
+    if (!result) {
+      durEl.textContent = 'Failed';
+      tokEl.textContent = '0 tokens';
+      bodyEl.innerHTML = `
+        <div class="alert-banner alert-danger">
+          <p class="alert-desc">No response was received from Gemini for Prompt ${fighter}.</p>
+        </div>
+      `;
+      return;
+    }
+
+    durEl.textContent = `${result.duration_ms || 0} ms`;
+    const tokens = result.usage ? result.usage.total_tokens : 0;
+    tokEl.textContent = `${tokens} token${tokens !== 1 ? 's' : ''}`;
+
+    if (result.success && result.text) {
+      bodyEl.innerHTML = renderMarkdown(result.text);
+    } else {
+      const errorMsg = result.error || 'An error occurred while generating this response.';
+      bodyEl.innerHTML = `
+        <div class="alert-banner alert-danger">
+          <h4 class="alert-title">Prompt ${fighter} Request Failed</h4>
+          <p class="alert-desc">${escapeHtml(errorMsg)}</p>
+        </div>
+      `;
+    }
+  }
+
+  function saveBattleVerdict() {
+    let chosenVerdict = '';
+    dom.battleVerdictRadios.forEach(radio => {
+      if (radio.checked) chosenVerdict = radio.value;
+    });
+
+    if (!chosenVerdict) {
+      showToast('Please select which response was more useful before saving.', 'info');
+      return;
+    }
+
+    const explanation = (dom.battleExplanationInput?.value || '').trim();
+    state.battle.verdict = chosenVerdict;
+    state.battle.explanation = explanation;
+
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const modelUsed = state.selectedModel;
+
+    dom.battleVerdictSummary.innerHTML = `
+      <h4>Verdict Recorded: ${escapeHtml(chosenVerdict)}</h4>
+      <p class="mb-1"><strong>Evaluated Model:</strong> <code>${escapeHtml(modelUsed)}</code> &bull; <strong>Time:</strong> ${timestamp}</p>
+      ${explanation ? `<p class="mt-2"><strong>Your Notes:</strong> <em>"${escapeHtml(explanation)}"</em></p>` : '<p class="mt-2 text-muted"><em>No additional notes provided.</em></p>'}
+      <div class="mt-3">
+        <span class="badge badge-emerald">✓ Verdict Saved</span>
+      </div>
+    `;
+    dom.battleVerdictSummary.classList.remove('hidden');
+    dom.battleVerdictSummary.scrollIntoView({ behavior: 'smooth' });
+
+    showToast(`Battle verdict saved: "${chosenVerdict}"!`, 'success');
+  }
+
+  // -------------------------------------------------------------------------
   // Helper Functions
   // -------------------------------------------------------------------------
   function countWords(str) {
@@ -1678,6 +2090,92 @@
     // Run Comparison CTA
     dom.btnRunComparison.addEventListener('click', runGeminiComparison);
 
+    // Model Selectors Synchronization
+    if (dom.stage4ModelSelect) {
+      dom.stage4ModelSelect.addEventListener('change', e => syncSelectedModel(e.target.value, true));
+    }
+    if (dom.battleModelSelect) {
+      dom.battleModelSelect.addEventListener('change', e => syncSelectedModel(e.target.value, true));
+    }
+    if (dom.geminiModelSelect) {
+      dom.geminiModelSelect.addEventListener('change', e => syncSelectedModel(e.target.value, false));
+    }
+
+    // Prompt Battle Controls
+    if (dom.battlePromptAInput) {
+      dom.battlePromptAInput.addEventListener('input', () => {
+        updateBattleCounters();
+        if (dom.battleValidationMsg) dom.battleValidationMsg.classList.add('hidden');
+      });
+    }
+    if (dom.battlePromptBInput) {
+      dom.battlePromptBInput.addEventListener('input', () => {
+        updateBattleCounters();
+        if (dom.battleValidationMsg) dom.battleValidationMsg.classList.add('hidden');
+      });
+    }
+    if (dom.btnBattleLoadStudio) {
+      dom.btnBattleLoadStudio.addEventListener('click', () => loadBattlePreset('studio'));
+    }
+    if (dom.btnBattleSampleClimate) {
+      dom.btnBattleSampleClimate.addEventListener('click', () => loadBattlePreset('climate'));
+    }
+    if (dom.btnBattleSampleCode) {
+      dom.btnBattleSampleCode.addEventListener('click', () => loadBattlePreset('code'));
+    }
+    if (dom.btnBattleSwap) {
+      dom.btnBattleSwap.addEventListener('click', swapBattlePrompts);
+    }
+    if (dom.btnBattleLoadOriginalA) {
+      dom.btnBattleLoadOriginalA.addEventListener('click', () => {
+        readInputs();
+        if (state.originalPrompt) {
+          dom.battlePromptAInput.value = state.originalPrompt;
+          if (dom.battleSourceA) dom.battleSourceA.textContent = 'Stage 1 Original Prompt';
+          updateBattleCounters();
+          showToast('Loaded Original Prompt into Prompt A.', 'info');
+        } else {
+          showToast('No original prompt written in Stage 1 yet.', 'info');
+        }
+      });
+    }
+    if (dom.battleLoadEnhancedSelect) {
+      dom.battleLoadEnhancedSelect.addEventListener('change', e => {
+        const techId = e.target.value;
+        if (!techId) return;
+        const item = state.enhancedPrompts.find(p => p.id === techId);
+        if (item) {
+          dom.battlePromptBInput.value = item.currentPrompt;
+          if (dom.battleSourceB) dom.battleSourceB.textContent = `Stage 3: ${item.name}`;
+          updateBattleCounters();
+          showToast(`Loaded "${item.name}" into Prompt B.`, 'info');
+        }
+      });
+    }
+    if (dom.btnStartBattle) {
+      dom.btnStartBattle.addEventListener('click', startPromptBattle);
+    }
+    if (dom.btnBattleEnterKey) {
+      dom.btnBattleEnterKey.addEventListener('click', () => openModal(dom.apiKeyModal));
+    }
+    if (dom.btnCopyBattleA) {
+      dom.btnCopyBattleA.addEventListener('click', () => {
+        if (state.battle.resultA && state.battle.resultA.text) {
+          copyTextToClipboard(state.battle.resultA.text, 'Copied Response A to clipboard!');
+        }
+      });
+    }
+    if (dom.btnCopyBattleB) {
+      dom.btnCopyBattleB.addEventListener('click', () => {
+        if (state.battle.resultB && state.battle.resultB.text) {
+          copyTextToClipboard(state.battle.resultB.text, 'Copied Response B to clipboard!');
+        }
+      });
+    }
+    if (dom.btnSaveVerdict) {
+      dom.btnSaveVerdict.addEventListener('click', saveBattleVerdict);
+    }
+
     // Keyboard shortcuts: Escape to close modals
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
@@ -1727,6 +2225,20 @@
     dom.comparisonResultsGrid.classList.add('hidden');
     dom.comparisonEmptyState.classList.remove('hidden');
     dom.observableDifferencesPanel.classList.add('hidden');
+
+    // Reset Prompt Battle
+    if (dom.battlePromptAInput) dom.battlePromptAInput.value = '';
+    if (dom.battlePromptBInput) dom.battlePromptBInput.value = '';
+    if (dom.battleSourceA) dom.battleSourceA.textContent = 'Manual / Custom Prompt';
+    if (dom.battleSourceB) dom.battleSourceB.textContent = 'Manual / Custom Prompt';
+    if (dom.battleEmptyState) dom.battleEmptyState.classList.remove('hidden');
+    if (dom.battleResultsGrid) dom.battleResultsGrid.classList.add('hidden');
+    if (dom.battleJudgementPanel) dom.battleJudgementPanel.classList.add('hidden');
+    if (dom.battleVerdictSummary) dom.battleVerdictSummary.classList.add('hidden');
+    if (dom.battleExplanationInput) dom.battleExplanationInput.value = '';
+    dom.battleVerdictRadios.forEach(r => r.checked = false);
+    state.battle = { promptA: '', promptB: '', isRunning: false, resultA: null, resultB: null, verdict: '', explanation: '' };
+    updateBattleCounters();
 
     // Optionally remove key
     if (alsoRemoveKey) {

@@ -60,6 +60,28 @@ class TestStaticAssets(unittest.TestCase):
                      "tech-step-by-step", "tech-few-shot", "tech-structured", "tech-combined"]:
             self.assertIn(tech, html, f"Technique checkbox {tech} must be in index.html")
 
+        # Check Feature 1: Prompt Battle markup
+        self.assertIn('id="stage-5"', html, "Prompt Battle section must exist in index.html")
+        self.assertIn('Prompt Battle: Head-to-Head Comparison', html)
+        self.assertIn('id="battle-prompt-a-input"', html)
+        self.assertIn('id="battle-prompt-b-input"', html)
+        self.assertIn('id="btn-start-battle"', html)
+        self.assertIn('id="battle-results-grid"', html)
+        self.assertIn('id="battle-response-card-a"', html)
+        self.assertIn('id="battle-response-card-b"', html)
+        self.assertIn('id="battle-judgement-panel"', html)
+        self.assertIn('value="Prompt A"', html)
+        self.assertIn('value="Prompt B"', html)
+        self.assertIn('value="About the same"', html)
+        self.assertIn('id="battle-explanation-input"', html)
+        self.assertIn('id="btn-save-verdict"', html)
+
+        # Check Feature 2: Gemini Model Selector markup
+        self.assertIn('id="stage4-model-select"', html, "Stage 4 model selector must exist")
+        self.assertIn('id="battle-model-select"', html, "Prompt Battle model selector must exist")
+        self.assertIn('id="gemini-model-select"', html, "Settings model selector must exist")
+        self.assertIn('gemini-3.5-flash-lite', html)
+
         # Check accessible landmarks
         self.assertIn('role="main"', html)
         self.assertIn('role="banner"', html)
@@ -137,6 +159,13 @@ class TestPromptEngineeringTechniques(unittest.TestCase):
         self.assertIn("gemini-3.5-flash-lite", supported_ids)
         self.assertIn("gemini-3.8-flash", supported_ids)
         self.assertIn("gemini-3.1-pro-preview", supported_ids)
+        self.assertIn("gemini-flash-lite-latest", supported_ids)
+        self.assertIn("gemini-3-flash-preview", supported_ids)
+
+        # Check model retrieval fallback without key
+        models_fallback = server.fetch_live_models_from_gemini("")
+        self.assertGreaterEqual(len(models_fallback), 4)
+        self.assertEqual(models_fallback[0]["id"], server.DEFAULT_MODEL_ID)
 
 
 class MockSocket:
