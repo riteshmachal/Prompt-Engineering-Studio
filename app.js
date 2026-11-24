@@ -1015,15 +1015,16 @@
 
     updateProgress(10, `Preparing ${queue.length} prompt request${queue.length > 1 ? 's' : ''}...`);
 
-    // Prepare UI cards in "Generating" state
+    // Prepare UI cards in "Waiting" state
     dom.comparisonResultsGrid.innerHTML = '';
     state.comparisonResults = queue.map(item => ({
       ...item,
-      status: 'generating',
+      status: 'waiting',
       response: '',
       duration_ms: 0,
       usage: null,
-      error: null
+      error: null,
+      model: modelToUse
     }));
 
     state.comparisonResults.forEach(item => {
@@ -1031,65 +1032,92 @@
     });
 
     let completedCount = 0;
+    const concurrencyLimit = 2; // Controlled bounded concurrency to avoid provider 503 burst overload
+    let queueIdx = 0;
 
-    // Send independent requests in parallel
-    const promises = queue.map(async (item, idx) => {
-      try {
-        const onRetry = (attempt, maxAttempts, phase, delayMs) => {
-          const statusBadge = document.getElementById(`status-${item.id}`);
-          if (statusBadge) {
-            if (phase === 'waiting') {
-              const sec = (delayMs ? (delayMs / 1000).toFixed(1) : '1.5');
-              statusBadge.className = 'result-status-badge status-waiting';
-              statusBadge.innerHTML = `<span class="spinner-sm"></span><span>Waiting to retry (${sec}s)...</span>`;
-            } else {
-              statusBadge.className = 'result-status-badge status-retrying';
-              statusBadge.innerHTML = `<span class="spinner-sm"></span><span>Retrying (${attempt}/${maxAttempts})...</span>`;
+    async function processQueueWorker() {
+      while (queueIdx < queue.length) {
+        const myIdx = queueIdx++;
+        const item = queue[myIdx];
+
+        // Transition card from 'waiting' to 'generating'
+        const statusBadge = document.getElementById(`status-${item.id}`);
+        if (statusBadge) {
+          statusBadge.className = 'result-status-badge status-generating';
+          statusBadge.innerHTML = `<span class="spinner-sm"></span><span>Generating...</span>`;
+        }
+        const bodyEl = document.getElementById(`body-${item.id}`);
+        if (bodyEl) {
+          bodyEl.innerHTML = `<p class="text-muted"><span class="spinner-sm"></span> Calling Gemini with model <code>${escapeHtml(modelToUse)}</code>...</p>`;
+        }
+
+        try {
+          const onRetry = (attempt, maxAttempts, phase, delayMs) => {
+            const badge = document.getElementById(`status-${item.id}`);
+            if (badge) {
+              if (phase === 'waiting') {
+                const sec = (delayMs ? (delayMs / 1000).toFixed(1) : '1.5');
+                badge.className = 'result-status-badge status-waiting';
+                badge.innerHTML = `<span class="spinner-sm"></span><span>Waiting to retry (${sec}s)...</span>`;
+              } else {
+                badge.className = 'result-status-badge status-retrying';
+                badge.innerHTML = `<span class="spinner-sm"></span><span>Retrying (${attempt}/${maxAttempts})...</span>`;
+              }
             }
-          }
-          dom.comparisonProgressText.textContent = `Retrying ${item.label} (temporary provider spike)...`;
-        };
+            dom.comparisonProgressText.textContent = `Retrying ${item.label} (temporary provider spike)...`;
+          };
 
-        const result = await executeGeminiRequest(item.prompt, state.selectedModel, state.apiKey, onRetry);
-        completedCount++;
-        const pct = Math.round((completedCount / queue.length) * 90) + 10;
-        updateProgress(pct, `Completed ${completedCount} of ${queue.length} responses...`);
+          const result = await executeGeminiRequest(item.prompt, modelToUse, state.apiKey, onRetry);
+          completedCount++;
+          const pct = Math.round((completedCount / queue.length) * 90) + 10;
+          updateProgress(pct, `Completed ${completedCount} of ${queue.length} responses...`);
 
-        state.comparisonResults[idx] = {
-          ...item,
-          status: result.success ? 'success' : 'error',
-          response: result.text || '',
-          duration_ms: result.duration_ms || 0,
-          usage: result.usage || null,
-          error: result.error || null,
-          model: result.model || state.selectedModel,
-          statusCode: result.statusCode,
-          retryable: result.retryable !== false,
-          alternative_model: result.alternative_model || getVerifiedAlternativeModel(result.model || state.selectedModel),
-          isAlternativeModel: result.isAlternativeModel || false
-        };
-      } catch (err) {
-        completedCount++;
-        const altModel = getVerifiedAlternativeModel(state.selectedModel);
-        state.comparisonResults[idx] = {
-          ...item,
-          status: 'error',
-          response: '',
-          duration_ms: 0,
-          usage: null,
-          error: sanitizeErrorText(err.message || 'Unknown network error', state.apiKey),
-          model: state.selectedModel,
-          statusCode: 0,
-          retryable: true,
-          alternative_model: altModel,
-          isAlternativeModel: false
-        };
-      } finally {
-        updateResultCard(state.comparisonResults[idx]);
+          state.comparisonResults[myIdx] = {
+            ...item,
+            status: result.success ? 'success' : 'error',
+            response: result.text || '',
+            duration_ms: result.duration_ms || 0,
+            usage: result.usage || null,
+            error: result.error || null,
+            model: result.model || modelToUse,
+            statusCode: result.statusCode,
+            retryable: result.retryable !== false
+          };
+        } catch (err) {
+          completedCount++;
+          state.comparisonResults[myIdx] = {
+            ...item,
+            status: 'error',
+            response: '',
+            duration_ms: 0,
+            usage: null,
+            error: sanitizeErrorText(err.message || 'Unknown network error', state.apiKey),
+            model: modelToUse,
+            statusCode: 0,
+            retryable: true
+          };
+        } finally {
+          updateResultCard(state.comparisonResults[myIdx]);
+        }
+
+        // Small inter-request pause to protect provider rate limits
+        if (queueIdx < queue.length) {
+          await new Promise(r => setTimeout(r, 250));
+        }
       }
-    });
+    }
 
-    await Promise.all(promises);
+    // Launch worker pool with an initial stagger
+    const workers = [];
+    const activeWorkers = Math.min(concurrencyLimit, queue.length);
+    for (let w = 0; w < activeWorkers; w++) {
+      if (w > 0) {
+        await new Promise(r => setTimeout(r, 300));
+      }
+      workers.push(processQueueWorker());
+    }
+
+    await Promise.all(workers);
 
     // Finished
     state.isRunningComparison = false;
@@ -1229,7 +1257,7 @@
           } else if (resp.status === 429) {
             friendly = `Gemini quota or rate limit exceeded for model '${requestedModel}'. Please wait a moment before sending another request.`;
           } else if (resp.status >= 500) {
-            friendly = `Google Gemini service is temporarily overloaded for model '${requestedModel}' (${resp.status} Service Unavailable). Spikes in demand are temporary; please retry in a few moments or test with an alternative model like ${altModel}.`;
+            friendly = `Google Gemini service is temporarily overloaded for model '${requestedModel}' (${resp.status} Service Unavailable). Spikes in demand are temporary; please retry in a few moments.`;
           }
 
           return {
@@ -1316,14 +1344,14 @@
           <span class="badge ${item.badgeClass}">${escapeHtml(item.techniqueName)}</span>
           <span class="result-source-name">${escapeHtml(item.label)}</span>
         </div>
-        <div class="result-status-badge status-generating" id="status-${item.id}">
+        <div class="result-status-badge status-waiting" id="status-${item.id}">
           <span class="spinner-sm"></span>
-          <span>Generating...</span>
+          <span>Waiting</span>
         </div>
       </div>
 
       <div class="result-content-body" id="body-${item.id}">
-        <p class="text-muted">Waiting for response from Gemini...</p>
+        <p class="text-muted"><span class="spinner-sm"></span> Waiting in queue for Gemini...</p>
       </div>
 
       <details class="prompt-inspect-details">
@@ -1333,7 +1361,7 @@
 
       <div class="result-card-footer">
         <div class="result-meta-items" id="meta-${item.id}">
-          <span class="meta-pill">Model: ${escapeHtml(state.selectedModel)}</span>
+          <span class="meta-pill">Model: ${escapeHtml(item.model || state.selectedModel)}</span>
         </div>
         <button type="button" class="btn btn-ghost btn-xs btn-copy-result" data-id="${item.id}" disabled>
           Copy Response
@@ -1371,7 +1399,7 @@
       }
 
       const modelBadge = item.isAlternativeModel
-        ? `<span class="meta-pill meta-pill-alt" title="This card used an alternative fallback model">Model: ${escapeHtml(item.model)} (Alternative Fallback)</span>`
+        ? `<span class="meta-pill meta-pill-alt" title="This card tested an alternative model">Model: ${escapeHtml(item.model)} (Tested Model)</span>`
         : `<span class="meta-pill">Model: ${escapeHtml(item.model || state.selectedModel)}</span>`;
 
       metaEl.innerHTML = `
@@ -1400,7 +1428,7 @@
             </button>
           </div>
           <p class="retry-hint-text">
-            <strong>Manual Retry:</strong> Retrying sends only this card without re-running completed prompts. Choosing an alternative model tests whether provider load is model-specific, and will be labeled as an alternative fallback.
+            <strong>Next step:</strong> Retrying sends only this prompt card using model <code>${escapeHtml(item.model || state.selectedModel)}</code> without resending completed cards.
           </p>
         `;
       } else {
@@ -1719,20 +1747,40 @@
     dom.battleRespModelA.textContent = battleModel;
     dom.battleRespModelB.textContent = battleModel;
     dom.battleRespDurationA.textContent = 'Processing...';
-    dom.battleRespDurationB.textContent = 'Processing...';
+    dom.battleRespDurationB.textContent = 'Waiting in queue...';
     dom.battleRespTokensA.textContent = '-- tokens';
     dom.battleRespTokensB.textContent = '-- tokens';
     dom.battleRespBodyA.innerHTML = '<div class="loading-spinner-wrap"><div class="spinner"></div><p>Generating response for Prompt A...</p></div>';
-    dom.battleRespBodyB.innerHTML = '<div class="loading-spinner-wrap"><div class="spinner"></div><p>Generating response for Prompt B...</p></div>';
+    dom.battleRespBodyB.innerHTML = '<div class="loading-spinner-wrap"><div class="spinner"></div><p>Waiting in queue for Prompt B...</p></div>';
 
-    // Execute in parallel against the SAME model and settings
-    const runA = executeGeminiRequest(promptA, battleModel, state.apiKey, (attempt, max) => {
-      dom.battleProgressText.textContent = `Retrying Prompt A (attempt ${attempt} of ${max})...`;
+    // Prompt A starts immediately against the chosen model
+    const runA = executeGeminiRequest(promptA, battleModel, state.apiKey, (attempt, max, phase, delayMs) => {
+      const sec = delayMs ? (delayMs / 1000).toFixed(1) : '1.5';
+      if (phase === 'waiting') {
+        dom.battleProgressText.textContent = `Prompt A waiting to retry (${sec}s)...`;
+        dom.battleRespDurationA.textContent = `Wait ${sec}s`;
+      } else {
+        dom.battleProgressText.textContent = `Retrying Prompt A (attempt ${attempt} of ${max})...`;
+        dom.battleRespDurationA.textContent = `Retry ${attempt}/${max}`;
+      }
     });
 
-    const runB = executeGeminiRequest(promptB, battleModel, state.apiKey, (attempt, max) => {
-      dom.battleProgressText.textContent = `Retrying Prompt B (attempt ${attempt} of ${max})...`;
-    });
+    // Stagger Prompt B slightly (350ms) to avoid simultaneous burst overload on provider rate limits
+    const runB = (async () => {
+      await new Promise(r => setTimeout(r, 350));
+      dom.battleRespDurationB.textContent = 'Processing...';
+      dom.battleRespBodyB.innerHTML = '<div class="loading-spinner-wrap"><div class="spinner"></div><p>Generating response for Prompt B...</p></div>';
+      return executeGeminiRequest(promptB, battleModel, state.apiKey, (attempt, max, phase, delayMs) => {
+        const sec = delayMs ? (delayMs / 1000).toFixed(1) : '1.5';
+        if (phase === 'waiting') {
+          dom.battleProgressText.textContent = `Prompt B waiting to retry (${sec}s)...`;
+          dom.battleRespDurationB.textContent = `Wait ${sec}s`;
+        } else {
+          dom.battleProgressText.textContent = `Retrying Prompt B (attempt ${attempt} of ${max})...`;
+          dom.battleRespDurationB.textContent = `Retry ${attempt}/${max}`;
+        }
+      });
+    })();
 
     let resA = null;
     let resB = null;
@@ -1781,7 +1829,7 @@
 
     const usedModel = (result && result.model) ? result.model : model;
     if (result && result.isAlternativeModel) {
-      modEl.textContent = `${usedModel} (Fallback)`;
+      modEl.textContent = `${usedModel} (Tested Model)`;
     } else {
       modEl.textContent = usedModel;
     }
@@ -1814,14 +1862,14 @@
           <div class="card-retry-actions mt-3">
             <button type="button" class="btn btn-secondary btn-sm btn-retry-battle" data-fighter="${fighter}">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mr-1"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-              <span>Retry Prompt ${fighter}</span>
+              <span>Retry failed request</span>
             </button>
             <button type="button" class="btn btn-outline btn-sm btn-retry-battle-alt" data-fighter="${fighter}" data-alt-model="${escapeHtml(altModel)}">
               <span>Retry with ${escapeHtml(altModel)}</span>
             </button>
           </div>
           <p class="retry-hint-text">
-            <strong>Manual Retry:</strong> Retrying affects only Prompt ${fighter}; the other prompt's response is preserved.
+            <strong>Next step:</strong> Retrying sends only Prompt ${fighter} with model <code>${escapeHtml(usedModel)}</code>. The other prompt's response is preserved.
           </p>
         `;
       } else {
@@ -1857,7 +1905,7 @@
     }
 
     const currentResult = isA ? state.battle.resultA : state.battle.resultB;
-    const defaultModel = state.selectedModel || 'gemini-3.5-flash-lite';
+    const defaultModel = dom.battleModelSelect?.value || state.selectedModel || 'gemini-3.5-flash-lite';
     const modelToUse = (modelOverride || (currentResult && currentResult.model) || defaultModel).trim();
     const isAlt = Boolean(modelOverride && modelOverride !== ((currentResult && currentResult.model) || defaultModel));
 
@@ -1865,7 +1913,7 @@
     const durEl = isA ? dom.battleRespDurationA : dom.battleRespDurationB;
     const modEl = isA ? dom.battleRespModelA : dom.battleRespModelB;
 
-    modEl.textContent = isAlt ? `${modelToUse} (Fallback)` : modelToUse;
+    modEl.textContent = isAlt ? `${modelToUse} (Tested Model)` : modelToUse;
     durEl.textContent = 'Retrying...';
     bodyEl.innerHTML = `<p class="text-muted"><span class="spinner-sm"></span> Retrying Prompt ${fighter} with <code>${escapeHtml(modelToUse)}</code>...</p>`;
 

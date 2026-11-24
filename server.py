@@ -321,7 +321,7 @@ def call_gemini_api(prompt: str, model: str, api_key: str, temperature: float = 
                 friendly = f"Gemini quota or rate limit exceeded for model '{model}'. Please wait a moment before sending another request, or check your quota in Google AI Studio."
                 retryable = False
             elif status_code in (500, 503, 504):
-                friendly = f"Google Gemini service is temporarily overloaded for model '{model}' ({status_code} Service Unavailable). Spikes in demand are temporary; please retry in a few moments or test with an alternative model like {alt_model}."
+                friendly = f"Google Gemini service is temporarily overloaded for model '{model}' ({status_code} Service Unavailable). Spikes in demand are temporary; please retry in a few moments."
                 retryable = True
             else:
                 friendly = f"Gemini API error ({status_code}): {clean_msg}"
@@ -578,6 +578,12 @@ def find_available_port(start_port: int, max_attempts: int = 15) -> int:
     return start_port
 
 
+class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    """Threaded TCP Server to handle concurrent HTTP requests without blocking."""
+    allow_reuse_address = True
+    daemon_threads = True
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Prompt Engineering Studio Server")
@@ -587,8 +593,7 @@ def main():
     port = find_available_port(args.port)
     server_address = ("127.0.0.1", port)
 
-    socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(server_address, StudioRequestHandler) as httpd:
+    with ThreadedTCPServer(server_address, StudioRequestHandler) as httpd:
         print("\n" + "=" * 65)
         print("  🌟 Prompt Engineering Studio Server")
         print(f"  URL: http://127.0.0.1:{port}")
