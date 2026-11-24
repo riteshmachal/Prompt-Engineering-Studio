@@ -444,6 +444,7 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             return
         elif url_path == "/api/config":
+            load_env_file()
             server_key_present = bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
             self._send_json({
                 "models": SUPPORTED_MODELS,
@@ -476,6 +477,8 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_generate()
         elif url_path == "/api/gemini/compare":
             self._handle_compare()
+        elif url_path == "/api/gemini/compare-models":
+            self._handle_compare_models()
         elif url_path == "/api/gemini/models":
             self._handle_models()
         else:
@@ -496,7 +499,9 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
         body_key = data.get("apiKey")
         if body_key and str(body_key).strip():
             return str(body_key).strip()
-        # Fallback to server env var if present
+        # Fallback to server env var if present; reload .env dynamically if not yet set
+        if not os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
+            load_env_file()
         return os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or ""
 
     def _read_json_body(self) -> Optional[Dict[str, Any]]:
@@ -600,6 +605,70 @@ class StudioRequestHandler(http.server.SimpleHTTPRequestHandler):
                     }
 
         self._send_json({"success": True, "results": results, "model": model})
+
+    def _handle_compare_models(self):
+        data = self._read_json_body()
+        if data is None:
+            self._send_json({"success": False, "error": "Invalid JSON in request body."}, status=400)
+            return
+
+        prompt = data.get("prompt", "")
+        if not prompt or not prompt.strip():
+            self._send_json({"success": False, "error": "Prompt cannot be empty for model comparison."}, status=400)
+            return
+
+        models = data.get("models", [])
+        if not models or not isinstance(models, list):
+            self._send_json({"success": False, "error": "A list of at least two models to compare is required."}, status=400)
+            return
+
+        temperature = data.get("temperature", 0.7)
+        api_key = self._get_api_key_from_request(data)
+
+        if not api_key:
+            self._send_json({
+                "success": False,
+                "error": "No Gemini API key supplied. Please configure GEMINI_API_KEY in .env or enter your API key in settings.",
+                "statusCode": 401
+            }, status=401)
+            return
+
+        results = [None] * len(models)
+
+        def worker(idx: int, model_id: str):
+            clean_model = model_id.strip()
+            call_res = call_gemini_api(prompt, clean_model, api_key, temperature)
+            call_res["model"] = clean_model
+            display_name = clean_model
+            for m in SUPPORTED_MODELS:
+                if m["id"] == clean_model:
+                    display_name = m["name"]
+                    break
+            call_res["model_name"] = display_name
+            call_res["prompt"] = prompt
+            return idx, call_res
+
+        max_workers = min(len(models), 4)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_idx = {executor.submit(worker, i, m): i for i, m in enumerate(models)}
+            for future in as_completed(future_to_idx):
+                try:
+                    idx, res = future.result()
+                    results[idx] = res
+                except Exception as ex:
+                    idx = future_to_idx[future]
+                    clean_model = models[idx].strip()
+                    results[idx] = {
+                        "model": clean_model,
+                        "model_name": clean_model,
+                        "prompt": prompt,
+                        "success": False,
+                        "error": sanitize_error_message(f"Execution error: {str(ex)}", api_key),
+                        "statusCode": 500,
+                        "retryable": True
+                    }
+
+        self._send_json({"success": True, "results": results, "prompt": prompt})
 
     def _handle_models(self):
         data = self._read_json_body() or {}

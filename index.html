@@ -101,8 +101,8 @@
           <div class="guide-step">
             <div class="guide-step-num">4</div>
             <div class="guide-step-body">
-              <h3>Compare Gemini's responses</h3>
-              <p>Send prompts to Google Gemini and compare the actual responses side by side in real time.</p>
+              <h3>Compare results</h3>
+              <p>Compare prompts on one model (Stage 4), compare models on one prompt (Stage 5), or battle head-to-head (Stage 6).</p>
             </div>
           </div>
         </div>
@@ -115,7 +115,7 @@
         <li class="stepper-item active" id="step-nav-1">
           <a href="#stage-1" class="stepper-link">
             <span class="stepper-badge">1</span>
-            <span class="stepper-label">Write your prompt</span>
+            <span class="stepper-label">Write prompt</span>
           </a>
         </li>
         <li class="stepper-item" id="step-nav-2">
@@ -133,17 +133,45 @@
         <li class="stepper-item" id="step-nav-4">
           <a href="#stage-4" class="stepper-link">
             <span class="stepper-badge">4</span>
-            <span class="stepper-label">Compare Gemini responses</span>
+            <span class="stepper-label">Prompt Comparison</span>
           </a>
         </li>
         <li class="stepper-item" id="step-nav-5">
           <a href="#stage-5" class="stepper-link">
             <span class="stepper-badge">5</span>
+            <span class="stepper-label">Model Comparison</span>
+          </a>
+        </li>
+        <li class="stepper-item" id="step-nav-6">
+          <a href="#stage-6" class="stepper-link">
+            <span class="stepper-badge">6</span>
             <span class="stepper-label">Prompt Battle</span>
           </a>
         </li>
       </ol>
     </nav>
+
+    <!-- Learning Dimensions Educational Banner -->
+    <section class="learning-dimensions-banner" aria-label="Core Academic Comparison Dimensions">
+      <div class="dimension-card dim-prompt">
+        <div class="dim-badge badge-emerald">Workflow 1 • Stage 4</div>
+        <h3 class="dim-title">Prompt Comparison</h3>
+        <p class="dim-desc">Vary the <strong>prompt structure</strong> while holding the <strong>model constant</strong>. Demonstrates how specific prompt-engineering techniques guide output.</p>
+        <span class="dim-rule">Different Prompts &rarr; Same Gemini Model</span>
+      </div>
+      <div class="dimension-card dim-model">
+        <div class="dim-badge badge-purple">Workflow 2 • Stage 5</div>
+        <h3 class="dim-title">Model Comparison</h3>
+        <p class="dim-desc">Keep the <strong>prompt strictly identical</strong> while dispatching to <strong>different Gemini models</strong>. Evaluates model speed, depth, and token efficiency.</p>
+        <span class="dim-rule">Same Prompt &rarr; Different Gemini Models</span>
+      </div>
+      <div class="dimension-card dim-battle">
+        <div class="dim-badge badge-terracotta">Workflow 3 • Stage 6</div>
+        <h3 class="dim-title">Prompt Battle</h3>
+        <p class="dim-desc">Pit two prompt variations <strong>head-to-head</strong> on the same model and evaluate the resulting answers with interactive user voting and rationale.</p>
+        <span class="dim-rule">Prompt A vs Prompt B &rarr; Same Model</span>
+      </div>
+    </section>
 
     <!-- STAGE 1: Write Your Prompt -->
     <section class="stage-section" id="stage-1" aria-labelledby="stage-1-heading">
@@ -551,29 +579,45 @@
         <!-- Stage 3 Footer Action -->
         <div class="stage-actions stage-3-actions">
           <div class="comparison-ready-note" id="comparison-ready-note">Select prompts to test against Gemini below.</div>
-          <button type="button" id="btn-go-to-comparison" class="btn btn-primary">
-            <span>Proceed to Gemini Comparison</span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M5 12h14M12 5l7 7-7 7"/>
-            </svg>
-          </button>
+          <div class="stage-3-nav-buttons">
+            <button type="button" id="btn-go-to-comparison" class="btn btn-primary">
+              <span>Compare Prompts on One Model (Stage 4)</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
+            </button>
+            <button type="button" id="btn-go-to-model-comp" class="btn btn-secondary">
+              <span>Compare Models on One Prompt (Stage 5)</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- STAGE 4: Compare Gemini's Responses -->
+    <!-- STAGE 4: Prompt Comparison (Different Prompts on the Same Model) -->
     <section class="stage-section" id="stage-4" aria-labelledby="stage-4-heading">
       <div class="stage-header">
         <div class="stage-badge-wrap">
           <span class="stage-indicator">Stage 4</span>
-          <h2 id="stage-4-heading" class="stage-title">Compare Gemini’s responses</h2>
+          <h2 id="stage-4-heading" class="stage-title">Compare Gemini’s responses (Prompt Comparison)</h2>
         </div>
         <p class="stage-desc">
-          Send the original and improved prompts to <strong>Google Gemini</strong> to see how structural improvements affect actual AI performance side by side.
+          Hold the Gemini model constant and evaluate how different prompt engineering techniques improve response clarity, structure, and adherence on the exact same model.
         </p>
       </div>
 
       <div class="card stage-card">
+        <!-- Comparison Principle Banner -->
+        <div class="comparison-principle-banner">
+          <div class="principle-item principle-active">
+            <span class="badge badge-emerald">Controlled Variable: Same Model</span>
+            <span class="principle-text">The selected Gemini model is held constant across all cards to evaluate the effect of <strong>prompt engineering</strong> alone.</span>
+          </div>
+          <a href="#stage-5" class="btn btn-ghost btn-xs principle-switch-link">Switch to Model Comparison (Stage 5) &rarr;</a>
+        </div>
         <!-- Comparison Control Bar -->
         <div class="comparison-control-bar">
           <div class="comparison-selection-options">
@@ -713,12 +757,205 @@
       </div>
     </section>
 
-    <!-- STAGE 5: Prompt Battle -->
+    <!-- STAGE 5: Model Comparison (Same Prompt across Different Gemini Models) -->
     <section class="stage-section" id="stage-5" aria-labelledby="stage-5-heading">
       <div class="stage-header">
         <div class="stage-badge-wrap">
-          <span class="stage-indicator stage-indicator-battle">Stage 5</span>
-          <h2 id="stage-5-heading" class="stage-title">Prompt Battle: Head-to-Head Comparison</h2>
+          <span class="stage-indicator stage-indicator-model">Stage 5</span>
+          <h2 id="stage-5-heading" class="stage-title">Model Comparison (Same Prompt &rarr; Different Gemini Models)</h2>
+        </div>
+        <p class="stage-desc">
+          Hold the prompt strictly constant and send it across <strong>multiple Gemini models</strong> simultaneously. Observe how different model architectures, capabilities, and parameters shape the response.
+        </p>
+      </div>
+
+      <div class="card stage-card">
+        <!-- Educational Concept Box -->
+        <div class="model-comp-guide-box" role="region" aria-label="About Model Comparison">
+          <div class="model-comp-guide-header">
+            <div class="model-comp-guide-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="3" width="20" height="18" rx="2"/>
+                <line x1="8" y1="3" x2="8" y2="21"/>
+                <line x1="16" y1="3" x2="16" y2="21"/>
+              </svg>
+            </div>
+            <div>
+              <h3 class="model-comp-guide-title">How Model Comparison Works</h3>
+              <p class="model-comp-guide-subtitle">
+                In Model Comparison, the prompt is your <strong>controlled variable</strong> (strictly identical), and the Google Gemini models are the <strong>independent variable</strong>. This allows you to isolate and evaluate differences in reasoning depth, speed, verbosity, and token efficiency across Google Gemini models.
+              </p>
+            </div>
+          </div>
+          <div class="model-comp-guide-notes">
+            <span class="guide-note-pill">⚡ <strong>Flash Lite:</strong> Optimized for high-throughput, low latency, and cost efficiency</span>
+            <span class="guide-note-pill">🧠 <strong>Preview / Pro:</strong> Enhanced reasoning depth and complex conceptual synthesis</span>
+            <span class="guide-note-pill">🔑 <strong>Single Project Key:</strong> One Gemini API key covers all verified models in your Google project</span>
+          </div>
+        </div>
+
+        <!-- Prompt Source & Input Section -->
+        <div class="model-comp-input-wrap">
+          <div class="form-group">
+            <div class="label-with-actions">
+              <label for="model-comp-prompt-text" class="form-label">
+                <strong>Prompt to Send to All Models:</strong>
+              </label>
+              <div class="prompt-source-picker">
+                <label for="model-comp-prompt-source" class="text-xs text-muted">Load prompt from:</label>
+                <select id="model-comp-prompt-source" class="form-control form-control-xs" aria-label="Select source prompt for model comparison">
+                  <option value="original">Original Prompt (from Stage 1)</option>
+                  <option value="custom">Custom Prompt (type below)</option>
+                </select>
+              </div>
+            </div>
+            <textarea
+              id="model-comp-prompt-text"
+              class="form-control prompt-textarea"
+              rows="4"
+              placeholder="Enter or load the prompt you want to test across different Gemini models..."
+              aria-label="Prompt text to test across models"
+            ></textarea>
+            <div class="char-count-wrap">
+              <span class="char-count" id="model-comp-counter">0 chars | 0 words</span>
+            </div>
+          </div>
+
+          <!-- Model Multi-Select Area -->
+          <div class="model-selection-area">
+            <div class="models-header-row">
+              <label class="control-label">
+                <strong>Select Gemini Models to Compare (Choose 2 or more):</strong>
+              </label>
+              <div class="model-quick-btns">
+                <button type="button" class="btn btn-ghost btn-xs" id="btn-model-comp-select-recommended">Select Recommended</button>
+                <button type="button" class="btn btn-ghost btn-xs" id="btn-model-comp-select-all">Select All</button>
+                <button type="button" class="btn btn-ghost btn-xs" id="btn-model-comp-clear">Clear</button>
+              </div>
+            </div>
+
+            <div class="model-chips-grid" id="model-comp-chips-grid">
+              <!-- Dynamically populated model selector checkboxes -->
+            </div>
+
+            <div class="model-selection-status-row">
+              <span class="selection-badge" id="model-comp-selected-count">2 models selected (minimum 2)</span>
+              <span class="text-xs text-muted">💡 Every card below displays the model display name and exact official model ID.</span>
+            </div>
+          </div>
+
+          <div id="model-comp-validation-msg" class="validation-message hidden" role="alert"></div>
+
+          <!-- Run Button Wrap -->
+          <div class="model-comp-run-bar">
+            <button type="button" id="btn-run-model-comparison" class="btn btn-gemini btn-lg">
+              <svg class="sparkle-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+              <span id="btn-run-model-comparison-text">Compare Models with Gemini</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Missing Key Alert Banner -->
+        <div id="model-comp-missing-key-banner" class="alert-banner alert-warning hidden" role="alert">
+          <div class="alert-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <div class="alert-body">
+            <h4 class="alert-title">Gemini API Key Required for Model Comparison</h4>
+            <p class="alert-desc">
+              To send requests to Google Gemini models, please configure your API key. Enter it in settings or set <code>GEMINI_API_KEY</code> in your local <code>.env</code> file.
+            </p>
+            <div class="alert-cta-row">
+              <button type="button" class="btn btn-sm btn-dark" id="btn-model-comp-enter-key">Enter API Key</button>
+              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="link-external">
+                Get a free key from Google AI Studio &rarr;
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Concurrency Progress Bar -->
+        <div id="model-comp-progress-wrap" class="comparison-progress-wrap hidden">
+          <div class="progress-bar-container">
+            <div id="model-comp-progress-bar" class="progress-bar-fill"></div>
+          </div>
+          <div class="progress-status-text" id="model-comp-progress-text">Calling Gemini models...</div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="model-comp-empty-state" class="empty-state-card nested-empty">
+          <div class="empty-state-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="2" y="3" width="20" height="18" rx="2"/>
+              <line x1="8" y1="3" x2="8" y2="21"/>
+              <line x1="16" y1="3" x2="16" y2="21"/>
+            </svg>
+          </div>
+          <h3 class="empty-state-title">Model responses will appear here side by side</h3>
+          <p class="empty-state-desc">Select 2 or more Gemini models above and click <strong>Compare Models with Gemini</strong> to observe how different models process the identical prompt.</p>
+        </div>
+
+        <!-- Results Grid -->
+        <div id="model-comp-results-grid" class="comparison-grid hidden" aria-live="polite">
+          <!-- Dynamically inserted model response cards -->
+        </div>
+
+        <!-- Model Comparison Diagnostic Matrix -->
+        <div id="model-comp-matrix-panel" class="observable-differences-panel hidden">
+          <div class="panel-header">
+            <div class="panel-title-wrap">
+              <span class="badge badge-purple">Cross-Model Analysis</span>
+              <h3 class="panel-title">Model Performance & Characteristics Matrix</h3>
+            </div>
+            <span class="panel-badge-estimate">Empirical Gemini Metrics</span>
+          </div>
+
+          <p class="differences-disclaimer">
+            The matrix below records empirical measurements across the tested Gemini models. Latency and token consumption reflect real provider metrics. Style and adherence observations help guide which model to choose for specific applications.
+          </p>
+
+          <div class="table-responsive">
+            <table class="differences-table" id="model-comp-matrix-table">
+              <thead>
+                <tr>
+                  <th scope="col">Model Name</th>
+                  <th scope="col">Exact Model ID</th>
+                  <th scope="col">Latency</th>
+                  <th scope="col">Words</th>
+                  <th scope="col">Tokens (In / Out / Tot)</th>
+                  <th scope="col">Observed Characteristics</th>
+                </tr>
+              </thead>
+              <tbody id="model-comp-matrix-tbody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Academic Insights Callout -->
+          <div class="learnings-card">
+            <h4>💡 Academic Insights: Understanding Model Differences</h4>
+            <div id="model-comp-learnings-content" class="learnings-content">
+              <!-- Dynamically populated cross-model insight -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- STAGE 6: Prompt Battle -->
+    <section class="stage-section" id="stage-6" aria-labelledby="stage-6-heading">
+      <div class="stage-header">
+        <div class="stage-badge-wrap">
+          <span class="stage-indicator stage-indicator-battle">Stage 6</span>
+          <h2 id="stage-6-heading" class="stage-title">Prompt Battle: Head-to-Head Comparison</h2>
         </div>
         <p class="stage-desc">
           Pit two prompt variations against each other with the exact same Gemini model and settings to discover which technique delivers the more effective, structured, and helpful response.

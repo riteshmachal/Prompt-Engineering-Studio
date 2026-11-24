@@ -52,7 +52,14 @@ def test_full_flow():
     assert "gemini-3.5-flash-lite" in server_py, "gemini-3.5-flash-lite must be supported"
     assert "gemini-3.8-flash" in server_py, "gemini-3.8-flash must be supported"
     assert "gemini-3.1-pro-preview" in server_py, "gemini-3.1-pro-preview must be supported"
-    print("✓ Supported Gemini models verified.")
+    assert "/api/gemini/compare-models" in server_py, "Server must expose compare-models endpoint"
+    print("✓ Supported Gemini models and endpoints verified.")
+
+    # Verify model comparison & battle functions in app.js
+    for f in ["runModelComparison", "renderModelComparisonChips", "retryModelCard", "renderModelComparisonMatrix",
+              "startPromptBattle", "retryBattleFighter", "saveBattleVerdict"]:
+        assert f in js, f"Function {f} must exist in app.js"
+    print("✓ Model comparison and Prompt Battle functions verified in app.js.")
 
     # Verify security: no real key embedded
     real_key_match = re.search(r'AIzaSy[A-Za-z0-9_-]{33}', js)

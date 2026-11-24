@@ -38,6 +38,12 @@
     enhancedPrompts: [],
     comparisonResults: [],
     isRunningComparison: false,
+    modelComparison: {
+      prompt: '',
+      selectedModels: new Set(['gemini-3.5-flash-lite', 'gemini-flash-lite-latest']),
+      isRunning: false,
+      results: []
+    },
     battle: {
       promptA: '',
       promptB: '',
@@ -139,9 +145,10 @@
     btnCheckAllComparison: document.getElementById('btn-check-all-comparison'),
     btnUncheckAllComparison: document.getElementById('btn-uncheck-all-comparison'),
     btnGoToComparison: document.getElementById('btn-go-to-comparison'),
+    btnGoToModelComp: document.getElementById('btn-go-to-model-comp'),
     comparisonReadyNote: document.getElementById('comparison-ready-note'),
 
-    // Stage 4
+    // Stage 4: Prompt Comparison
     stage4ModelSelect: document.getElementById('stage4-model-select'),
     activeModelDisplay: document.getElementById('active-model-display'),
     btnRunComparison: document.getElementById('btn-run-comparison'),
@@ -157,7 +164,30 @@
     differencesTbody: document.getElementById('differences-tbody'),
     learningsContent: document.getElementById('learnings-content'),
 
-    // Stage 5: Prompt Battle
+    // Stage 5: Model Comparison
+    modelCompPromptSource: document.getElementById('model-comp-prompt-source'),
+    modelCompPromptText: document.getElementById('model-comp-prompt-text'),
+    modelCompCounter: document.getElementById('model-comp-counter'),
+    modelCompChipsGrid: document.getElementById('model-comp-chips-grid'),
+    btnModelCompSelectRecommended: document.getElementById('btn-model-comp-select-recommended'),
+    btnModelCompSelectAll: document.getElementById('btn-model-comp-select-all'),
+    btnModelCompClear: document.getElementById('btn-model-comp-clear'),
+    modelCompSelectedCount: document.getElementById('model-comp-selected-count'),
+    btnRunModelComparison: document.getElementById('btn-run-model-comparison'),
+    btnRunModelComparisonText: document.getElementById('btn-run-model-comparison-text'),
+    modelCompMissingKeyBanner: document.getElementById('model-comp-missing-key-banner'),
+    btnModelCompEnterKey: document.getElementById('btn-model-comp-enter-key'),
+    modelCompValidationMsg: document.getElementById('model-comp-validation-msg'),
+    modelCompProgressWrap: document.getElementById('model-comp-progress-wrap'),
+    modelCompProgressBar: document.getElementById('model-comp-progress-bar'),
+    modelCompProgressText: document.getElementById('model-comp-progress-text'),
+    modelCompEmptyState: document.getElementById('model-comp-empty-state'),
+    modelCompResultsGrid: document.getElementById('model-comp-results-grid'),
+    modelCompMatrixPanel: document.getElementById('model-comp-matrix-panel'),
+    modelCompMatrixTbody: document.getElementById('model-comp-matrix-tbody'),
+    modelCompLearningsContent: document.getElementById('model-comp-learnings-content'),
+
+    // Stage 6: Prompt Battle
     battleModelSelect: document.getElementById('battle-model-select'),
     battlePromptAInput: document.getElementById('battle-prompt-a-input'),
     battlePromptBInput: document.getElementById('battle-prompt-b-input'),
@@ -236,6 +266,7 @@
     updateCharCounter();
     updateTechSelectionCount();
     updateBattleCounters();
+    initModelComparison();
 
     // Check if server provides default config and live models
     checkServerConfig();
@@ -261,6 +292,7 @@
         sel.value = state.selectedModel;
       }
     });
+    renderModelComparisonChips(models);
   }
 
   function syncSelectedModel(newModel, showToastNotification = false) {
@@ -371,12 +403,14 @@
       dom.apiStatusText.textContent = `Key: ${masked}`;
       dom.btnRemoveKey.classList.remove('hidden');
       dom.missingKeyBanner.classList.add('hidden');
+      if (dom.modelCompMissingKeyBanner) dom.modelCompMissingKeyBanner.classList.add('hidden');
       if (dom.battleMissingKeyBanner) dom.battleMissingKeyBanner.classList.add('hidden');
     } else if (state.hasServerKey) {
       dom.apiStatusDot.className = 'status-dot dot-active';
       dom.apiStatusText.textContent = 'Env: GEMINI_API_KEY';
       dom.btnRemoveKey.classList.add('hidden');
       dom.missingKeyBanner.classList.add('hidden');
+      if (dom.modelCompMissingKeyBanner) dom.modelCompMissingKeyBanner.classList.add('hidden');
       if (dom.battleMissingKeyBanner) dom.battleMissingKeyBanner.classList.add('hidden');
     } else {
       dom.apiStatusDot.className = 'status-dot dot-inactive';
@@ -916,6 +950,14 @@
                 </svg>
                 Copy
               </button>
+              <button type="button" class="btn btn-ghost btn-xs btn-send-model-comp" data-tech="${item.id}" title="Test this prompt across different Gemini models (Stage 5)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="2" y="3" width="20" height="18" rx="2"/>
+                  <line x1="8" y1="3" x2="8" y2="21"/>
+                  <line x1="16" y1="3" x2="16" y2="21"/>
+                </svg>
+                Compare Models &rarr;
+              </button>
             </div>
           </div>
         </div>
@@ -940,6 +982,7 @@
 
     updateComparisonReadyNote();
     updateBattleEnhancedDropdown();
+    updateModelCompPromptOptions();
   }
 
   function updateComparisonReadyNote() {
@@ -1632,6 +1675,518 @@
   }
 
   // -------------------------------------------------------------------------
+  // Stage 5: Model Comparison Controller
+  // -------------------------------------------------------------------------
+  function initModelComparison() {
+    renderModelComparisonChips(state.availableModels);
+    updateModelCompPromptOptions();
+    updateModelCompCounters();
+  }
+
+  function renderModelComparisonChips(models) {
+    if (!dom.modelCompChipsGrid) return;
+    const modelList = (models && models.length) ? models : state.availableModels;
+    dom.modelCompChipsGrid.innerHTML = '';
+
+    modelList.forEach(m => {
+      const isSelected = state.modelComparison.selectedModels.has(m.id);
+      const card = document.createElement('label');
+      card.className = `model-chip-card ${isSelected ? 'selected' : ''}`;
+      card.setAttribute('data-model-id', m.id);
+
+      card.innerHTML = `
+        <input type="checkbox" class="model-chip-checkbox" value="${escapeHtml(m.id)}" ${isSelected ? 'checked' : ''} aria-label="Select ${escapeHtml(m.name)}">
+        <div class="model-chip-info">
+          <div class="model-chip-title-row">
+            <span class="model-chip-name">${escapeHtml(m.name)}</span>
+            ${m.recommended ? '<span class="badge badge-emerald">Recommended</span>' : ''}
+          </div>
+          <span class="model-chip-id">${escapeHtml(m.id)}</span>
+          <span class="model-chip-desc">${escapeHtml(m.description || '')}</span>
+        </div>
+      `;
+
+      dom.modelCompChipsGrid.appendChild(card);
+    });
+
+    updateModelCompSelectedCount();
+  }
+
+  function updateModelCompSelectedCount() {
+    if (!dom.modelCompSelectedCount) return;
+    const count = state.modelComparison.selectedModels.size;
+    dom.modelCompSelectedCount.textContent = `${count} model${count !== 1 ? 's' : ''} selected (minimum 2)`;
+    if (count < 2) {
+      dom.modelCompSelectedCount.style.borderColor = '#fca5a5';
+      dom.modelCompSelectedCount.style.color = '#b91c1c';
+      dom.modelCompSelectedCount.style.background = '#fef2f2';
+    } else {
+      dom.modelCompSelectedCount.style.borderColor = '#ddd6fe';
+      dom.modelCompSelectedCount.style.color = '#7c3aed';
+      dom.modelCompSelectedCount.style.background = '#ede9fe';
+    }
+  }
+
+  function updateModelCompPromptOptions() {
+    if (!dom.modelCompPromptSource) return;
+    const currentVal = dom.modelCompPromptSource.value || 'original';
+    dom.modelCompPromptSource.innerHTML = '';
+
+    // Original Prompt
+    const optOrig = document.createElement('option');
+    optOrig.value = 'original';
+    const origWords = state.originalPrompt ? countWords(state.originalPrompt) : 0;
+    optOrig.textContent = `Stage 1 Original Prompt (${origWords} words)`;
+    dom.modelCompPromptSource.appendChild(optOrig);
+
+    // Enhanced Prompts from Stage 3
+    state.enhancedPrompts.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = `Stage 3: ${p.name} (${countWords(p.currentPrompt)} words)`;
+      dom.modelCompPromptSource.appendChild(opt);
+    });
+
+    // Custom
+    const optCustom = document.createElement('option');
+    optCustom.value = 'custom';
+    optCustom.textContent = 'Custom Prompt (Type Below)';
+    dom.modelCompPromptSource.appendChild(optCustom);
+
+    // Set value and pre-populate textarea if empty
+    if (currentVal && Array.from(dom.modelCompPromptSource.options).some(o => o.value === currentVal)) {
+      dom.modelCompPromptSource.value = currentVal;
+    } else {
+      dom.modelCompPromptSource.value = 'original';
+    }
+
+    if (!dom.modelCompPromptText.value.trim()) {
+      loadPromptIntoModelComp(dom.modelCompPromptSource.value);
+    }
+  }
+
+  function loadPromptIntoModelComp(sourceKey) {
+    if (sourceKey === 'original') {
+      readInputs();
+      dom.modelCompPromptText.value = state.originalPrompt || '';
+    } else if (sourceKey === 'custom') {
+      // Keep existing text
+    } else {
+      const item = state.enhancedPrompts.find(p => p.id === sourceKey);
+      if (item) {
+        dom.modelCompPromptText.value = item.currentPrompt;
+      }
+    }
+    updateModelCompCounters();
+  }
+
+  function updateModelCompCounters() {
+    if (!dom.modelCompCounter || !dom.modelCompPromptText) return;
+    const text = dom.modelCompPromptText.value;
+    const words = countWords(text);
+    const chars = text.length;
+    dom.modelCompCounter.textContent = `${chars} char${chars !== 1 ? 's' : ''} | ${words} word${words !== 1 ? 's' : ''}`;
+  }
+
+  async function runModelComparison() {
+    if (state.modelComparison.isRunning) return;
+
+    const promptText = (dom.modelCompPromptText?.value || '').trim();
+    dom.modelCompValidationMsg.classList.add('hidden');
+
+    if (!promptText) {
+      dom.modelCompValidationMsg.textContent = 'Please enter or load a prompt before running model comparison.';
+      dom.modelCompValidationMsg.classList.remove('hidden');
+      dom.modelCompPromptText.focus();
+      return;
+    }
+
+    const selectedModelIds = Array.from(state.modelComparison.selectedModels);
+    if (selectedModelIds.length < 2) {
+      dom.modelCompValidationMsg.textContent = 'Please select at least 2 Gemini models to compare. Click "Select Recommended" to pick a verified pair.';
+      dom.modelCompValidationMsg.classList.remove('hidden');
+      return;
+    }
+
+    // Check API Key
+    if (!state.apiKey && !state.hasServerKey) {
+      dom.modelCompMissingKeyBanner.classList.remove('hidden');
+      dom.modelCompMissingKeyBanner.scrollIntoView({ behavior: 'smooth' });
+      openModal(dom.apiKeyModal);
+      showToast('A Gemini API key is required. Enter it in settings or set GEMINI_API_KEY in .env.', 'error');
+      return;
+    }
+
+    // Start execution
+    state.modelComparison.isRunning = true;
+    dom.btnRunModelComparison.disabled = true;
+    dom.btnRunModelComparisonText.textContent = 'Calling Gemini Models...';
+
+    dom.modelCompEmptyState.classList.add('hidden');
+    dom.modelCompResultsGrid.classList.remove('hidden');
+    dom.modelCompProgressWrap.classList.remove('hidden');
+    dom.modelCompMatrixPanel.classList.add('hidden');
+
+    updateModelCompProgress(10, `Preparing ${selectedModelIds.length} model requests...`);
+
+    // Prepare initial waiting cards
+    dom.modelCompResultsGrid.innerHTML = '';
+    state.modelComparison.results = selectedModelIds.map(mId => {
+      const modelObj = state.availableModels.find(m => m.id === mId) || { id: mId, name: mId };
+      return {
+        id: mId,
+        model: mId,
+        modelName: modelObj.name,
+        prompt: promptText,
+        status: 'waiting',
+        response: '',
+        duration_ms: 0,
+        usage: null,
+        error: null,
+        statusCode: null,
+        retryable: true
+      };
+    });
+
+    state.modelComparison.results.forEach(item => {
+      renderModelCard(item);
+    });
+
+    let completedCount = 0;
+    const concurrencyLimit = 2; // Controlled bounded concurrency
+    let modelIdx = 0;
+
+    async function processModelWorker() {
+      while (modelIdx < selectedModelIds.length) {
+        const myIdx = modelIdx++;
+        const item = state.modelComparison.results[myIdx];
+
+        // Transition card from 'waiting' to 'generating'
+        const statusBadge = document.getElementById(`status-model-${item.id}`);
+        if (statusBadge) {
+          statusBadge.className = 'result-status-badge status-generating';
+          statusBadge.innerHTML = `<span class="spinner-sm"></span><span>Generating...</span>`;
+        }
+        const bodyEl = document.getElementById(`body-model-${item.id}`);
+        if (bodyEl) {
+          bodyEl.innerHTML = `<p class="text-muted"><span class="spinner-sm"></span> Dispatching prompt to <code>${escapeHtml(item.model)}</code>...</p>`;
+        }
+
+        try {
+          const onRetry = (attempt, maxAttempts, phase, delayMs) => {
+            const badge = document.getElementById(`status-model-${item.id}`);
+            if (badge) {
+              if (phase === 'waiting') {
+                const sec = (delayMs ? (delayMs / 1000).toFixed(1) : '1.5');
+                badge.className = 'result-status-badge status-waiting';
+                badge.innerHTML = `<span class="spinner-sm"></span><span>Waiting to retry (${sec}s)...</span>`;
+              } else {
+                badge.className = 'result-status-badge status-retrying';
+                badge.innerHTML = `<span class="spinner-sm"></span><span>Retrying (${attempt}/${maxAttempts})...</span>`;
+              }
+            }
+            dom.modelCompProgressText.textContent = `Retrying model ${item.modelName} (temporary provider spike)...`;
+          };
+
+          const result = await executeGeminiRequest(promptText, item.model, state.apiKey, onRetry);
+          completedCount++;
+          const pct = Math.round((completedCount / selectedModelIds.length) * 90) + 10;
+          updateModelCompProgress(pct, `Completed ${completedCount} of ${selectedModelIds.length} models...`);
+
+          state.modelComparison.results[myIdx] = {
+            ...item,
+            status: result.success ? 'success' : 'error',
+            response: result.text || '',
+            duration_ms: result.duration_ms || 0,
+            usage: result.usage || null,
+            error: result.error || null,
+            statusCode: result.statusCode,
+            retryable: result.retryable !== false
+          };
+        } catch (err) {
+          completedCount++;
+          state.modelComparison.results[myIdx] = {
+            ...item,
+            status: 'error',
+            response: '',
+            duration_ms: 0,
+            usage: null,
+            error: sanitizeErrorText(err.message || 'Unknown network error', state.apiKey),
+            statusCode: 0,
+            retryable: true
+          };
+        } finally {
+          updateModelCard(state.modelComparison.results[myIdx]);
+        }
+
+        // Inter-request pacing to avoid burst rate limits
+        if (modelIdx < selectedModelIds.length) {
+          await new Promise(r => setTimeout(r, 250));
+        }
+      }
+    }
+
+    // Launch worker pool with staggered start
+    const workers = [];
+    const activeWorkers = Math.min(concurrencyLimit, selectedModelIds.length);
+    for (let w = 0; w < activeWorkers; w++) {
+      if (w > 0) {
+        await new Promise(r => setTimeout(r, 300));
+      }
+      workers.push(processModelWorker());
+    }
+
+    await Promise.all(workers);
+
+    // Finished
+    state.modelComparison.isRunning = false;
+    dom.btnRunModelComparison.disabled = false;
+    dom.btnRunModelComparisonText.textContent = 'Compare Models with Gemini';
+    updateModelCompProgress(100, 'All Gemini model responses received!');
+
+    setTimeout(() => {
+      dom.modelCompProgressWrap.classList.add('hidden');
+    }, 1200);
+
+    // Render Cross-Model Diagnostic Matrix
+    renderModelComparisonMatrix();
+    updateStepper(5);
+    showToast('Model comparison completed!', 'success');
+  }
+
+  function updateModelCompProgress(pct, text) {
+    if (dom.modelCompProgressBar) dom.modelCompProgressBar.style.width = `${pct}%`;
+    if (dom.modelCompProgressText) dom.modelCompProgressText.textContent = text;
+  }
+
+  function renderModelCard(item) {
+    const card = document.createElement('div');
+    card.className = 'result-card';
+    card.id = `card-model-${item.id}`;
+
+    card.innerHTML = `
+      <div class="result-card-header">
+        <div class="result-title-wrap">
+          <span class="badge badge-purple">Model</span>
+          <h3 class="result-card-title">${escapeHtml(item.modelName)}</h3>
+          <span class="model-id-pill" title="Exact Gemini Model ID"><code>${escapeHtml(item.model)}</code></span>
+        </div>
+        <div class="result-header-actions">
+          <span class="result-status-badge status-waiting" id="status-model-${item.id}">Waiting in queue...</span>
+          <button type="button" class="btn btn-ghost btn-xs btn-copy-model-result" data-id="${item.id}" disabled title="Copy response">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            Copy
+          </button>
+        </div>
+      </div>
+      <div class="result-card-body" id="body-model-${item.id}">
+        <p class="text-muted"><span class="spinner-sm"></span> Waiting to send prompt...</p>
+      </div>
+      <div class="result-card-footer" id="footer-model-${item.id}">
+        <span class="meta-pill">Model: <code>${escapeHtml(item.model)}</code></span>
+        <span class="meta-pill text-muted">Time: --</span>
+        <span class="meta-pill text-muted">Tokens: --</span>
+      </div>
+    `;
+
+    dom.modelCompResultsGrid.appendChild(card);
+  }
+
+  function updateModelCard(item) {
+    const cardEl = document.getElementById(`card-model-${item.id}`);
+    const statusEl = document.getElementById(`status-model-${item.id}`);
+    const bodyEl = document.getElementById(`body-model-${item.id}`);
+    const footerEl = document.getElementById(`footer-model-${item.id}`);
+    const copyBtn = cardEl ? cardEl.querySelector('.btn-copy-model-result') : null;
+
+    if (!cardEl || !statusEl || !bodyEl || !footerEl) return;
+
+    if (item.status === 'success') {
+      statusEl.className = 'result-status-badge status-success';
+      statusEl.textContent = 'Completed';
+
+      bodyEl.innerHTML = renderMarkdown(item.response);
+      if (copyBtn) copyBtn.disabled = false;
+
+      const durationSec = (item.duration_ms / 1000).toFixed(2);
+      let tokensHtml = '';
+      if (item.usage && (item.usage.total_tokens !== null && item.usage.total_tokens !== undefined || item.usage.prompt_tokens !== null && item.usage.prompt_tokens !== undefined || item.usage.candidates_tokens !== null && item.usage.candidates_tokens !== undefined)) {
+        const inTok = (item.usage.prompt_tokens !== null && item.usage.prompt_tokens !== undefined) ? item.usage.prompt_tokens : 'N/A';
+        const outTok = (item.usage.candidates_tokens !== null && item.usage.candidates_tokens !== undefined) ? item.usage.candidates_tokens : 'N/A';
+        const totTok = (item.usage.total_tokens !== null && item.usage.total_tokens !== undefined) ? item.usage.total_tokens : ((inTok !== 'N/A' && outTok !== 'N/A') ? (inTok + outTok) : 'N/A');
+        tokensHtml = `<span class="meta-pill" title="Gemini usage metadata: ${totTok} total tokens (${inTok} input + ${outTok} output)">Tokens: <strong>${totTok}</strong> (Input: ${inTok} | Output: ${outTok})</span>`;
+      } else {
+        tokensHtml = `<span class="meta-pill text-muted" title="Gemini response did not include usageMetadata">Token usage unavailable for this response</span>`;
+      }
+
+      footerEl.innerHTML = `
+        <span class="meta-pill">Model: <code>${escapeHtml(item.model)}</code></span>
+        <span class="meta-pill">Time: ${durationSec}s</span>
+        ${tokensHtml}
+        <span class="meta-pill">Words: ${countWords(item.response)}</span>
+      `;
+    } else {
+      statusEl.className = 'result-status-badge status-error';
+      statusEl.textContent = 'Failed';
+
+      const isRetryable = item.retryable !== false;
+      let retryControlsHtml = '';
+      if (isRetryable) {
+        retryControlsHtml = `
+          <div class="card-retry-actions">
+            <button type="button" class="btn btn-secondary btn-sm btn-retry-model-card" data-id="${item.id}" title="Retry this failed model only">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mr-1"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              <span>Retry this model</span>
+            </button>
+          </div>
+          <p class="retry-hint-text">
+            <span>💡 Transient provider spike. Clicking retry sends a fresh request to model <code>${escapeHtml(item.model)}</code> only. Other successful models are preserved.</span>
+          </p>
+        `;
+      }
+
+      bodyEl.innerHTML = `
+        <div class="error-box">
+          <div class="error-box-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <strong>Generation Request Failed for ${escapeHtml(item.modelName)}</strong>
+          </div>
+          <p class="error-box-desc">${escapeHtml(item.error || 'Unknown error occurred.')}</p>
+          <div class="error-troubleshoot">
+            <p><strong>Troubleshooting:</strong></p>
+            <ul>
+              <li>If the model was not found or is unavailable, select another verified model above.</li>
+              <li>If rate-limited (429), please wait a moment and retry.</li>
+              <li>Your API key is safe and verified locally.</li>
+            </ul>
+          </div>
+          ${retryControlsHtml}
+        </div>
+      `;
+
+      footerEl.innerHTML = `
+        <span class="meta-pill">Model: <code>${escapeHtml(item.model)}</code></span>
+        <span class="meta-pill text-danger">Status: Failed (${escapeHtml(item.statusCode || 'Error')})</span>
+      `;
+    }
+  }
+
+  async function retryModelCard(modelId) {
+    const item = state.modelComparison.results.find(r => r.id === modelId);
+    if (!item) return;
+
+    const cardEl = document.getElementById(`card-model-${item.id}`);
+    const statusEl = document.getElementById(`status-model-${item.id}`);
+    const bodyEl = document.getElementById(`body-model-${item.id}`);
+    if (!cardEl || !statusEl || !bodyEl) return;
+
+    statusEl.className = 'result-status-badge status-retrying';
+    statusEl.innerHTML = `<span class="spinner-sm"></span><span>Retrying...</span>`;
+    bodyEl.innerHTML = `<p class="text-muted"><span class="spinner-sm"></span> Re-calling Gemini for model <code>${escapeHtml(item.model)}</code>...</p>`;
+
+    try {
+      const result = await executeGeminiRequest(item.prompt, item.model, state.apiKey, (attempt, maxAttempts, phase, delayMs) => {
+        if (phase === 'waiting') {
+          const sec = (delayMs ? (delayMs / 1000).toFixed(1) : '1.5');
+          statusEl.innerHTML = `<span class="spinner-sm"></span><span>Waiting (${sec}s)...</span>`;
+        } else {
+          statusEl.innerHTML = `<span class="spinner-sm"></span><span>Retrying (${attempt}/${maxAttempts})...</span>`;
+        }
+      });
+
+      item.status = result.success ? 'success' : 'error';
+      item.response = result.text || '';
+      item.duration_ms = result.duration_ms || 0;
+      item.usage = result.usage || null;
+      item.error = result.error || null;
+      item.statusCode = result.statusCode;
+      item.retryable = result.retryable !== false;
+    } catch (err) {
+      item.status = 'error';
+      item.response = '';
+      item.duration_ms = 0;
+      item.usage = null;
+      item.error = sanitizeErrorText(err.message || 'Unknown network error', state.apiKey);
+      item.statusCode = 0;
+      item.retryable = true;
+    } finally {
+      updateModelCard(item);
+      renderModelComparisonMatrix();
+    }
+  }
+
+  function renderModelComparisonMatrix() {
+    if (!dom.modelCompMatrixTbody || !dom.modelCompMatrixPanel) return;
+    const completed = state.modelComparison.results.filter(r => r.status === 'success');
+    if (completed.length === 0) return;
+
+    dom.modelCompMatrixTbody.innerHTML = '';
+
+    completed.forEach(item => {
+      const row = document.createElement('tr');
+      const words = countWords(item.response);
+      const durationSec = (item.duration_ms / 1000).toFixed(2) + 's';
+
+      let tokenStr = 'Unavailable';
+      if (item.usage && (item.usage.total_tokens !== null && item.usage.total_tokens !== undefined || item.usage.prompt_tokens !== null && item.usage.prompt_tokens !== undefined)) {
+        const inTok = item.usage.prompt_tokens ?? '--';
+        const outTok = item.usage.candidates_tokens ?? '--';
+        const totTok = item.usage.total_tokens ?? '--';
+        tokenStr = `${totTok} (${inTok} in / ${outTok} out)`;
+      }
+
+      // Characteristics
+      const hasBullets = /^[*-]\s+/m.test(item.response);
+      const hasCode = /```/.test(item.response);
+      const hasNumbered = /^\d+\.\s+/m.test(item.response);
+      const traits = [];
+      if (hasBullets) traits.push('Bullet lists');
+      if (hasNumbered) traits.push('Numbered steps');
+      if (hasCode) traits.push('Code snippets');
+      if (words < 80) traits.push('Concise synthesis');
+      else if (words > 180) traits.push('In-depth expansion');
+      else traits.push('Standard paragraph');
+
+      row.innerHTML = `
+        <td><strong>${escapeHtml(item.modelName)}</strong></td>
+        <td><code>${escapeHtml(item.model)}</code></td>
+        <td>${durationSec}</td>
+        <td>${words}</td>
+        <td>${tokenStr}</td>
+        <td>${traits.join(', ')}</td>
+      `;
+
+      dom.modelCompMatrixTbody.appendChild(row);
+    });
+
+    // Academic Insight
+    if (dom.modelCompLearningsContent) {
+      const fastest = [...completed].sort((a, b) => a.duration_ms - b.duration_ms)[0];
+      const longest = [...completed].sort((a, b) => countWords(b.response) - countWords(a.response))[0];
+
+      dom.modelCompLearningsContent.innerHTML = `
+        <p>
+          Testing the exact same prompt across multiple models isolates architectural trade-offs:
+          <strong>${escapeHtml(fastest.modelName)}</strong> delivered the quickest response (${(fastest.duration_ms / 1000).toFixed(2)}s), while
+          <strong>${escapeHtml(longest.modelName)}</strong> generated the most comprehensive output (${countWords(longest.response)} words).
+        </p>
+        <p class="mt-3">
+          <strong>Key Academic Takeaway:</strong> Lighter models (such as Flash Lite) excel at low latency and high token throughput for structured queries, whereas frontier and preview models synthesize richer conceptual depth at the cost of slightly higher latency.
+        </p>
+      `;
+    }
+
+    dom.modelCompMatrixPanel.classList.remove('hidden');
+  }
+
+  // -------------------------------------------------------------------------
   // Feature 1: Prompt Battle Flow
   // -------------------------------------------------------------------------
   function updateBattleCounters() {
@@ -1841,7 +2396,7 @@
     // Show Judgement Panel
     dom.battleJudgementPanel.classList.remove('hidden');
     dom.battleResultsGrid.scrollIntoView({ behavior: 'smooth' });
-    updateStepper(5);
+    updateStepper(6);
 
     showToast('Prompt Battle completed! Compare the responses side by side.', 'success');
   }
@@ -2332,6 +2887,13 @@
       updateStepper(4);
     });
 
+    if (dom.btnGoToModelComp) {
+      dom.btnGoToModelComp.addEventListener('click', () => {
+        document.getElementById('stage-5').scrollIntoView({ behavior: 'smooth' });
+        updateStepper(5);
+      });
+    }
+
     // Event Delegation for Enhanced Cards (Edit, Reset, Copy, Toggle, Jump)
     dom.enhancedCardsList.addEventListener('input', e => {
       if (e.target.classList.contains('enhanced-textarea')) {
@@ -2397,6 +2959,23 @@
         dom.optionalFieldsContainer.classList.remove('hidden');
         document.getElementById('stage-1').scrollIntoView({ behavior: 'smooth' });
       }
+
+      // Send to Model Comparison (Stage 5)
+      if (target.classList.contains('btn-send-model-comp')) {
+        const techId = target.getAttribute('data-tech');
+        const item = state.enhancedPrompts.find(p => p.id === techId);
+        if (item) {
+          if (dom.modelCompPromptText) dom.modelCompPromptText.value = item.currentPrompt;
+          if (dom.modelCompPromptSource) {
+            updateModelCompPromptOptions();
+            dom.modelCompPromptSource.value = techId;
+          }
+          updateModelCompCounters();
+          document.getElementById('stage-5').scrollIntoView({ behavior: 'smooth' });
+          updateStepper(5);
+          showToast(`Loaded "${item.name}" into Stage 5 Model Comparison!`, 'success');
+        }
+      }
     });
 
     // Event Delegation for Comparison Result Cards (Copy Response, Retries, Key Modal)
@@ -2447,7 +3026,83 @@
       dom.geminiModelSelect.addEventListener('change', e => syncSelectedModel(e.target.value, false));
     }
 
-    // Prompt Battle Controls
+    // Stage 5: Model Comparison Controls
+    if (dom.btnModelCompEnterKey) {
+      dom.btnModelCompEnterKey.addEventListener('click', () => openModal(dom.apiKeyModal));
+    }
+    if (dom.btnModelCompSelectRecommended) {
+      dom.btnModelCompSelectRecommended.addEventListener('click', () => {
+        state.modelComparison.selectedModels = new Set(['gemini-3.5-flash-lite', 'gemini-flash-lite-latest']);
+        renderModelComparisonChips();
+        showToast('Selected Recommended models (Flash Lite & Flash-Lite Latest).', 'info');
+      });
+    }
+    if (dom.btnModelCompSelectAll) {
+      dom.btnModelCompSelectAll.addEventListener('click', () => {
+        state.modelComparison.selectedModels = new Set(state.availableModels.map(m => m.id));
+        renderModelComparisonChips();
+        showToast('Selected all available Gemini models.', 'info');
+      });
+    }
+    if (dom.btnModelCompClear) {
+      dom.btnModelCompClear.addEventListener('click', () => {
+        state.modelComparison.selectedModels.clear();
+        renderModelComparisonChips();
+      });
+    }
+    if (dom.modelCompChipsGrid) {
+      dom.modelCompChipsGrid.addEventListener('change', e => {
+        const cb = e.target.closest('.model-chip-checkbox');
+        if (!cb) return;
+        const modelId = cb.value;
+        if (cb.checked) {
+          state.modelComparison.selectedModels.add(modelId);
+        } else {
+          state.modelComparison.selectedModels.delete(modelId);
+        }
+        const card = cb.closest('.model-chip-card');
+        if (card) card.classList.toggle('selected', cb.checked);
+        updateModelCompSelectedCount();
+        if (dom.modelCompValidationMsg) dom.modelCompValidationMsg.classList.add('hidden');
+      });
+    }
+    if (dom.modelCompPromptSource) {
+      dom.modelCompPromptSource.addEventListener('change', e => {
+        loadPromptIntoModelComp(e.target.value);
+      });
+    }
+    if (dom.modelCompPromptText) {
+      dom.modelCompPromptText.addEventListener('input', () => {
+        updateModelCompCounters();
+        if (dom.modelCompPromptSource) dom.modelCompPromptSource.value = 'custom';
+        if (dom.modelCompValidationMsg) dom.modelCompValidationMsg.classList.add('hidden');
+      });
+    }
+    if (dom.btnRunModelComparison) {
+      dom.btnRunModelComparison.addEventListener('click', runModelComparison);
+    }
+    if (dom.modelCompResultsGrid) {
+      dom.modelCompResultsGrid.addEventListener('click', e => {
+        const copyBtn = e.target.closest('.btn-copy-model-result');
+        if (copyBtn) {
+          const modelId = copyBtn.getAttribute('data-id');
+          const item = state.modelComparison.results.find(r => r.id === modelId);
+          if (item && item.response) {
+            copyTextToClipboard(item.response, `Copied response from ${item.modelName}!`);
+          }
+          return;
+        }
+
+        const retryBtn = e.target.closest('.btn-retry-model-card');
+        if (retryBtn) {
+          const modelId = retryBtn.getAttribute('data-id');
+          retryModelCard(modelId);
+          return;
+        }
+      });
+    }
+
+    // Stage 6: Prompt Battle Controls
     if (dom.battlePromptAInput) {
       dom.battlePromptAInput.addEventListener('input', () => {
         updateBattleCounters();

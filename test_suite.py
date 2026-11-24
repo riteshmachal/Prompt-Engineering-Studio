@@ -15,6 +15,8 @@ import io
 import re
 import json
 import time
+import urllib.request
+import urllib.error
 
 # Import server components
 import server
@@ -44,6 +46,8 @@ class TestStaticAssets(unittest.TestCase):
         self.assertIn("Choose improvements", html)
         self.assertIn("Review enhanced prompts", html)
         self.assertIn("Compare Gemini’s responses", html)
+        self.assertIn("Prompt Comparison", html)
+        self.assertIn("Model Comparison", html)
 
         # Check How it works area
         self.assertIn("How Prompt Engineering Studio Works", html)
@@ -60,8 +64,14 @@ class TestStaticAssets(unittest.TestCase):
                      "tech-step-by-step", "tech-few-shot", "tech-structured", "tech-combined"]:
             self.assertIn(tech, html, f"Technique checkbox {tech} must be in index.html")
 
-        # Check Feature 1: Prompt Battle markup
-        self.assertIn('id="stage-5"', html, "Prompt Battle section must exist in index.html")
+        # Check Stage 5: Model Comparison markup
+        self.assertIn('id="stage-5"', html, "Model Comparison section must exist in index.html")
+        self.assertIn('id="model-comp-chips-grid"', html)
+        self.assertIn('id="btn-run-model-comparison"', html)
+        self.assertIn('id="model-comp-matrix-table"', html)
+
+        # Check Stage 6: Prompt Battle markup
+        self.assertIn('id="stage-6"', html, "Prompt Battle section must exist in index.html")
         self.assertIn('Prompt Battle: Head-to-Head Comparison', html)
         self.assertIn('id="battle-prompt-a-input"', html)
         self.assertIn('id="battle-prompt-b-input"', html)
@@ -110,6 +120,9 @@ class TestStaticAssets(unittest.TestCase):
         self.assertIn("getVerifiedAlternativeModel", js, "Must define verified alternative model helper")
         self.assertIn("retryComparisonCard", js, "Must implement single-card retry")
         self.assertIn("retryBattleFighter", js, "Must implement single-fighter battle retry")
+        self.assertIn("retryModelCard", js, "Must implement single-model retry for model comparison")
+        self.assertIn("runModelComparison", js, "Must implement multi-model comparison runner")
+        self.assertIn("renderModelComparisonChips", js, "Must implement model comparison chips renderer")
         self.assertIn("btn-retry-card", js, "Must support per-card retry control")
         self.assertIn("btn-retry-card-alt", js, "Must support per-card alternative model retry")
 
@@ -226,6 +239,71 @@ class TestHandlerInternals(unittest.TestCase):
         self.assertGreaterEqual(port, 8080)
 
 
+class TestServerHandlerDispatch(unittest.TestCase):
+    """Test server HTTP request dispatch and endpoints using mocked handler without OS sockets."""
+
+    def setUp(self):
+        self.handler = server.StudioRequestHandler.__new__(server.StudioRequestHandler)
+        self.sent_responses = []
+        def mock_send_json(data, status=200):
+            self.sent_responses.append((data, status))
+        self.handler._send_json = mock_send_json
+        self.handler.headers = {}
+
+    def test_health_endpoint(self):
+        self.handler.path = "/api/health"
+        self.handler.do_GET()
+        self.assertEqual(len(self.sent_responses), 1)
+        data, status = self.sent_responses[0]
+        self.assertEqual(status, 200)
+        self.assertEqual(data["status"], "ok")
+        self.assertEqual(data["app"], "Prompt Engineering Studio")
+
+    def test_config_endpoint(self):
+        self.handler.path = "/api/config"
+        self.handler.do_GET()
+        self.assertEqual(len(self.sent_responses), 1)
+        data, status = self.sent_responses[0]
+        self.assertEqual(status, 200)
+        self.assertIn("models", data)
+        self.assertEqual(data["default_model"], server.DEFAULT_MODEL_ID)
+
+    def test_models_endpoint(self):
+        self.handler.path = "/api/gemini/models"
+        self.handler.do_GET()
+        self.assertEqual(len(self.sent_responses), 1)
+        data, status = self.sent_responses[0]
+        self.assertEqual(status, 200)
+        self.assertTrue(data["success"])
+        self.assertGreaterEqual(len(data["models"]), 4)
+
+    def test_generate_endpoint_validation(self):
+        self.handler._read_json_body = lambda: {"prompt": "Hello", "model": server.DEFAULT_MODEL_ID}
+        old_key = os.environ.pop("GEMINI_API_KEY", None)
+        try:
+            self.handler._handle_generate()
+            self.assertEqual(len(self.sent_responses), 1)
+            data, status = self.sent_responses[0]
+            self.assertEqual(status, 401)
+            self.assertIn("No Gemini API key supplied", data["error"])
+        finally:
+            if old_key is not None:
+                os.environ["GEMINI_API_KEY"] = old_key
+
+    def test_compare_endpoint_validation(self):
+        self.handler._read_json_body = lambda: {"prompts": [{"id": "p1", "text": "Hello"}]}
+        old_key = os.environ.pop("GEMINI_API_KEY", None)
+        try:
+            self.handler._handle_compare()
+            self.assertEqual(len(self.sent_responses), 1)
+            data, status = self.sent_responses[0]
+            self.assertEqual(status, 401)
+            self.assertIn("No Gemini API key supplied", data["error"])
+        finally:
+            if old_key is not None:
+                os.environ["GEMINI_API_KEY"] = old_key
+
+
 class TestEnvAndTokenUsage(unittest.TestCase):
     """Verify safe environment key handling and token usage parsing."""
 
@@ -273,6 +351,53 @@ class TestEnvAndTokenUsage(unittest.TestCase):
         self.assertIn("total_tokens", js)
         self.assertIn("Input:", js)
         self.assertIn("Output:", js)
+
+    def test_compare_models_handler_validation(self):
+        handler = server.StudioRequestHandler.__new__(server.StudioRequestHandler)
+        # Mock json responses
+        sent_responses = []
+        def mock_send_json(data, status=200):
+            sent_responses.append((data, status))
+        handler._send_json = mock_send_json
+
+        # Test missing body
+        handler._read_json_body = lambda: None
+        handler._handle_compare_models()
+        self.assertEqual(sent_responses[-1][1], 400)
+
+        # Test empty prompt
+        handler._read_json_body = lambda: {"prompt": "", "models": ["gemini-3.5-flash-lite"]}
+        handler._handle_compare_models()
+        self.assertEqual(sent_responses[-1][1], 400)
+        self.assertIn("Prompt cannot be empty", sent_responses[-1][0]["error"])
+
+        # Test missing models
+        handler._read_json_body = lambda: {"prompt": "Valid prompt", "models": []}
+        handler._handle_compare_models()
+        self.assertEqual(sent_responses[-1][1], 400)
+        self.assertIn("at least two models", sent_responses[-1][0]["error"])
+
+        # Test missing API key
+        handler._read_json_body = lambda: {"prompt": "Valid prompt", "models": ["gemini-3.5-flash-lite", "gemini-flash-lite-latest"]}
+        handler.headers = {}
+        old_key = os.environ.pop("GEMINI_API_KEY", None)
+        try:
+            handler._handle_compare_models()
+            self.assertEqual(sent_responses[-1][1], 401)
+            self.assertIn("No Gemini API key supplied", sent_responses[-1][0]["error"])
+        finally:
+            if old_key is not None:
+                os.environ["GEMINI_API_KEY"] = old_key
+
+    def test_model_comparison_structure_in_js(self):
+        with open(os.path.join(PROJECT_DIR, "app.js"), "r", encoding="utf-8") as f:
+            js = f.read()
+        self.assertIn("modelComparison", js)
+        self.assertIn("initModelComparison", js)
+        self.assertIn("runModelComparison", js)
+        self.assertIn("renderModelComparisonChips", js)
+        self.assertIn("renderModelComparisonMatrix", js)
+        self.assertIn("retryModelCard", js)
 
 
 if __name__ == "__main__":
