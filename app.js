@@ -14,6 +14,7 @@
   const state = {
     apiKey: '',
     rememberKey: false,
+    hasServerKey: false,
     selectedModel: 'gemini-3.5-flash-lite',
     availableModels: [
       { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite', recommended: true },
@@ -357,10 +358,8 @@
         if (data.default_model && (!state.selectedModel || state.selectedModel === 'gemini-3.1-flash-lite')) {
           syncSelectedModel(data.default_model);
         }
-        if (data.has_server_key && !state.apiKey) {
-          dom.apiStatusDot.className = 'status-dot dot-active';
-          dom.apiStatusText.textContent = 'Server Key Active';
-        }
+        state.hasServerKey = Boolean(data.has_server_key);
+        updateApiStatusDisplay();
       }
     } catch (e) {}
   }
@@ -371,6 +370,12 @@
       const masked = `${state.apiKey.substring(0, 6)}••••${state.apiKey.substring(state.apiKey.length - 4)}`;
       dom.apiStatusText.textContent = `Key: ${masked}`;
       dom.btnRemoveKey.classList.remove('hidden');
+      dom.missingKeyBanner.classList.add('hidden');
+      if (dom.battleMissingKeyBanner) dom.battleMissingKeyBanner.classList.add('hidden');
+    } else if (state.hasServerKey) {
+      dom.apiStatusDot.className = 'status-dot dot-active';
+      dom.apiStatusText.textContent = 'Env: GEMINI_API_KEY';
+      dom.btnRemoveKey.classList.add('hidden');
       dom.missingKeyBanner.classList.add('hidden');
       if (dom.battleMissingKeyBanner) dom.battleMissingKeyBanner.classList.add('hidden');
     } else {
@@ -956,10 +961,10 @@
     }
 
     // Check API Key
-    if (!state.apiKey) {
+    if (!state.apiKey && !state.hasServerKey) {
       dom.missingKeyBanner.classList.remove('hidden');
       openModal(dom.apiKeyModal);
-      showToast('A Gemini API key is required to send requests to Google Gemini.', 'error');
+      showToast('A Gemini API key is required. Enter it in settings or set GEMINI_API_KEY in .env.', 'error');
       return;
     }
 
@@ -1290,18 +1295,30 @@
           ? first.content.parts.map(p => p.text || '').join('')
           : '';
 
-        const usageMetadata = data.usageMetadata || {};
+        let usage = null;
+        if (data.usageMetadata && typeof data.usageMetadata === 'object') {
+          const u = data.usageMetadata;
+          const p = (u.promptTokenCount !== undefined) ? u.promptTokenCount : u.prompt_token_count;
+          const c = (u.candidatesTokenCount !== undefined) ? u.candidatesTokenCount : u.candidates_token_count;
+          const t = (u.totalTokenCount !== undefined) ? u.totalTokenCount : u.total_token_count;
+          if (p !== undefined || c !== undefined || t !== undefined) {
+            const pVal = (p !== undefined && p !== null) ? Number(p) : null;
+            const cVal = (c !== undefined && c !== null) ? Number(c) : null;
+            const tVal = (t !== undefined && t !== null) ? Number(t) : ((pVal !== null && cVal !== null) ? (pVal + cVal) : null);
+            usage = {
+              prompt_tokens: pVal,
+              candidates_tokens: cVal,
+              total_tokens: tVal
+            };
+          }
+        }
 
         return {
           success: true,
           text,
           model: requestedModel,
           duration_ms: elapsed,
-          usage: {
-            prompt_tokens: usageMetadata.promptTokenCount || 0,
-            candidates_tokens: usageMetadata.candidatesTokenCount || 0,
-            total_tokens: usageMetadata.totalTokenCount || 0
-          }
+          usage
         };
 
       } catch (err) {
@@ -1392,10 +1409,13 @@
       // Meta items
       const durationSec = (item.duration_ms / 1000).toFixed(2);
       let tokensHtml = '';
-      if (item.usage && item.usage.total_tokens) {
-        const inTokens = item.usage.prompt_tokens || 0;
-        const outTokens = item.usage.candidates_tokens || item.usage.candidate_tokens || 0;
-        tokensHtml = `<span class="meta-pill" title="Tokens consumed">Tokens: ${item.usage.total_tokens} (In: ${inTokens} / Out: ${outTokens})</span>`;
+      if (item.usage && (item.usage.total_tokens !== null && item.usage.total_tokens !== undefined || item.usage.prompt_tokens !== null && item.usage.prompt_tokens !== undefined || item.usage.candidates_tokens !== null && item.usage.candidates_tokens !== undefined)) {
+        const inTok = (item.usage.prompt_tokens !== null && item.usage.prompt_tokens !== undefined) ? item.usage.prompt_tokens : 'N/A';
+        const outTok = (item.usage.candidates_tokens !== null && item.usage.candidates_tokens !== undefined) ? item.usage.candidates_tokens : (item.usage.candidate_tokens !== undefined ? item.usage.candidate_tokens : 'N/A');
+        const totTok = (item.usage.total_tokens !== null && item.usage.total_tokens !== undefined) ? item.usage.total_tokens : ((inTok !== 'N/A' && outTok !== 'N/A') ? (inTok + outTok) : 'N/A');
+        tokensHtml = `<span class="meta-pill" title="Gemini usage metadata: ${totTok} total tokens (${inTok} input + ${outTok} output)">Tokens: <strong>${totTok}</strong> (Input: ${inTok} | Output: ${outTok})</span>`;
+      } else {
+        tokensHtml = `<span class="meta-pill text-muted" title="Gemini response did not include usageMetadata">Token usage unavailable for this response</span>`;
       }
 
       const modelBadge = item.isAlternativeModel
@@ -1541,7 +1561,13 @@
       const text = item.response;
       const wordCount = countWords(text);
       const durationStr = (item.duration_ms / 1000).toFixed(2) + 's';
-      const tokenStr = item.usage ? `${item.usage.total_tokens}` : 'N/A';
+      let tokenStr = 'Unavailable';
+      if (item.usage && (item.usage.total_tokens !== null && item.usage.total_tokens !== undefined || item.usage.prompt_tokens !== null && item.usage.prompt_tokens !== undefined || item.usage.candidates_tokens !== null && item.usage.candidates_tokens !== undefined)) {
+        const inTok = (item.usage.prompt_tokens !== null && item.usage.prompt_tokens !== undefined) ? item.usage.prompt_tokens : '--';
+        const outTok = (item.usage.candidates_tokens !== null && item.usage.candidates_tokens !== undefined) ? item.usage.candidates_tokens : (item.usage.candidate_tokens !== undefined ? item.usage.candidate_tokens : '--');
+        const totTok = (item.usage.total_tokens !== null && item.usage.total_tokens !== undefined) ? item.usage.total_tokens : ((inTok !== '--' && outTok !== '--') ? (inTok + outTok) : '--');
+        tokenStr = `${totTok} (In: ${inTok} / Out: ${outTok})`;
+      }
 
       // Formatting detections
       const features = [];
@@ -1714,7 +1740,7 @@
       return;
     }
 
-    if (!state.apiKey || !state.apiKey.trim()) {
+    if ((!state.apiKey || !state.apiKey.trim()) && !state.hasServerKey) {
       dom.battleMissingKeyBanner.classList.remove('hidden');
       dom.battleMissingKeyBanner.scrollIntoView({ behavior: 'smooth' });
       openModal(dom.apiKeyModal);
@@ -1836,7 +1862,7 @@
 
     if (!result) {
       durEl.textContent = 'Failed';
-      tokEl.textContent = '0 tokens';
+      tokEl.textContent = 'Token usage unavailable for this response';
       bodyEl.innerHTML = `
         <div class="alert-banner alert-danger">
           <p class="alert-desc">No response was received from Gemini for Prompt ${fighter}.</p>
@@ -1846,8 +1872,16 @@
     }
 
     durEl.textContent = `${result.duration_ms || 0} ms`;
-    const tokens = result.usage ? result.usage.total_tokens : 0;
-    tokEl.textContent = `${tokens} token${tokens !== 1 ? 's' : ''}`;
+    if (result.usage && (result.usage.total_tokens !== null && result.usage.total_tokens !== undefined || result.usage.prompt_tokens !== null && result.usage.prompt_tokens !== undefined || result.usage.candidates_tokens !== null && result.usage.candidates_tokens !== undefined)) {
+      const inTok = (result.usage.prompt_tokens !== null && result.usage.prompt_tokens !== undefined) ? result.usage.prompt_tokens : 'N/A';
+      const outTok = (result.usage.candidates_tokens !== null && result.usage.candidates_tokens !== undefined) ? result.usage.candidates_tokens : 'N/A';
+      const totTok = (result.usage.total_tokens !== null && result.usage.total_tokens !== undefined) ? result.usage.total_tokens : ((inTok !== 'N/A' && outTok !== 'N/A') ? (inTok + outTok) : 'N/A');
+      tokEl.textContent = `${totTok} tokens (In: ${inTok} | Out: ${outTok})`;
+      tokEl.title = `Actual Gemini Usage: ${totTok} total tokens (${inTok} prompt input + ${outTok} candidate output)`;
+    } else {
+      tokEl.textContent = 'Token usage unavailable for this response';
+      tokEl.title = 'Gemini did not return usageMetadata for this response';
+    }
 
     if (result.success && result.text) {
       bodyEl.innerHTML = renderMarkdown(result.text);

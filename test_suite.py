@@ -226,5 +226,54 @@ class TestHandlerInternals(unittest.TestCase):
         self.assertGreaterEqual(port, 8080)
 
 
+class TestEnvAndTokenUsage(unittest.TestCase):
+    """Verify safe environment key handling and token usage parsing."""
+
+    def test_env_example_exists_and_gitignore(self):
+        example_path = os.path.join(PROJECT_DIR, ".env.example")
+        self.assertTrue(os.path.isfile(example_path), ".env.example must exist in project root.")
+        with open(example_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn("GEMINI_API_KEY=your_gemini_api_key_here", content)
+        # Ensure no real key is in .env.example
+        self.assertNotIn("AIzaSyB", content)
+
+        # Check .gitignore
+        gitignore_path = os.path.join(PROJECT_DIR, ".gitignore")
+        with open(gitignore_path, "r", encoding="utf-8") as f:
+            gi = f.read()
+        self.assertIn(".env", gi)
+        self.assertIn("!.env.example", gi)
+
+    def test_load_env_file(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile("w+", delete=False) as tf:
+            tf.write("# Test env file\nGEMINI_API_KEY=test_sample_env_key_1234567\nPORT=9999\n")
+            temp_path = tf.name
+
+        try:
+            # Clear if set
+            old_val = os.environ.pop("GEMINI_API_KEY", None)
+            server.load_env_file(temp_path)
+            self.assertEqual(os.environ.get("GEMINI_API_KEY"), "test_sample_env_key_1234567")
+        finally:
+            os.remove(temp_path)
+            if old_val is not None:
+                os.environ["GEMINI_API_KEY"] = old_val
+            else:
+                os.environ.pop("GEMINI_API_KEY", None)
+
+    def test_token_usage_contract_in_js(self):
+        with open(os.path.join(PROJECT_DIR, "app.js"), "r", encoding="utf-8") as f:
+            js = f.read()
+        # Verify token distinction and unavailable message
+        self.assertIn("Token usage unavailable for this response", js)
+        self.assertIn("prompt_tokens", js)
+        self.assertIn("candidates_tokens", js)
+        self.assertIn("total_tokens", js)
+        self.assertIn("Input:", js)
+        self.assertIn("Output:", js)
+
+
 if __name__ == "__main__":
     unittest.main()

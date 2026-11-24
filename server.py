@@ -18,9 +18,35 @@ import urllib.parse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Any, List, Optional
 
-# Configuration
-DEFAULT_PORT = int(os.environ.get("PORT", 8080))
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def load_env_file(filepath: Optional[str] = None) -> None:
+    """Load key-value pairs from .env into os.environ without third-party dependencies."""
+    if filepath is None:
+        filepath = os.path.join(PROJECT_DIR, ".env")
+    if not os.path.isfile(filepath):
+        return
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    key, val = line.split("=", 1)
+                    key = key.strip()
+                    val = val.strip().strip("'\"")
+                    if key and key not in os.environ:
+                        os.environ[key] = val
+    except Exception:
+        pass
+
+
+# Load local .env file if present
+load_env_file()
+
+DEFAULT_PORT = int(os.environ.get("PORT", 8080))
 
 SUPPORTED_MODELS = [
     {
@@ -269,14 +295,31 @@ def call_gemini_api(prompt: str, model: str, api_key: str, temperature: float = 
                         "retryable": False
                     }
 
-                usage_metadata = data.get("usageMetadata", {})
+                usage_metadata = data.get("usageMetadata")
                 usage = None
-                if usage_metadata:
-                    usage = {
-                        "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
-                        "candidates_tokens": usage_metadata.get("candidatesTokenCount", 0),
-                        "total_tokens": usage_metadata.get("totalTokenCount", 0)
-                    }
+                if isinstance(usage_metadata, dict):
+                    prompt_cnt = usage_metadata.get("promptTokenCount")
+                    if prompt_cnt is None:
+                        prompt_cnt = usage_metadata.get("prompt_token_count")
+
+                    cand_cnt = usage_metadata.get("candidatesTokenCount")
+                    if cand_cnt is None:
+                        cand_cnt = usage_metadata.get("candidates_token_count")
+
+                    tot_cnt = usage_metadata.get("totalTokenCount")
+                    if tot_cnt is None:
+                        tot_cnt = usage_metadata.get("total_token_count")
+
+                    # Read token counts only when those fields are present
+                    if prompt_cnt is not None or cand_cnt is not None or tot_cnt is not None:
+                        p_val = int(prompt_cnt) if prompt_cnt is not None else None
+                        c_val = int(cand_cnt) if cand_cnt is not None else None
+                        t_val = int(tot_cnt) if tot_cnt is not None else ((p_val or 0) + (c_val or 0) if (p_val is not None or c_val is not None) else None)
+                        usage = {
+                            "prompt_tokens": p_val,
+                            "candidates_tokens": c_val,
+                            "total_tokens": t_val
+                        }
 
                 return {
                     "success": True,
