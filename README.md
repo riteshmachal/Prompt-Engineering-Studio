@@ -1,295 +1,372 @@
 # Prompt Engineering Studio
 
-> **CCA Activity for Artificial Intelligence • First Year, First Semester**  
-> A student exploration prototype for learning, practicing, and evaluating prompt engineering techniques using **Google Gemini**.
+> **Artificial Intelligence CCA Activity • First Year, First Semester**  
+> **Topic:** *“Generative AI: Prompt Engineering Comparison Across Different Models”*  
+> A hands-on laboratory workbench built to explore, apply, and empirically evaluate prompt-engineering techniques and model responses using **Google Gemini**.
 
 ---
 
-## 1. Project Title
-**Prompt Engineering Studio**
+## 1. Project Title & Academic Context
+
+- **Project Title:** Prompt Engineering Studio
+- **Academic Context:** Co-Curricular Activity (CCA) Project
+- **Course:** Artificial Intelligence (AI)
+- **Year & Semester:** First Year, First Semester
+- **Assigned Topic:** *“Generative AI: Prompt Engineering Comparison Across Different Models”*
+- **Author:** riteshmachal
+- **Repository:** [https://github.com/riteshmachal/Prompt-Engineering-Studio.git](https://github.com/riteshmachal/Prompt-Engineering-Studio.git)
 
 ---
 
-## 2. CCA Activity Context
-This project was developed as a student learning activity for the **Artificial Intelligence course (First Year, First Semester)**. It is built as a hands-on laboratory prototype to understand how generative AI responds to differently structured prompts.
+## 2. Project Overview & Learning Purpose
+
+Large Language Models (LLMs) such as Google Gemini are highly sensitive to prompt structure, phrasing, context, and constraints. A vague, one-sentence query often produces generic, conversational, or overly lengthy responses. Conversely, structured prompt techniques guide the model toward precise, reliable, and pedagogically calibrated outputs.
+
+**Prompt Engineering Studio** was developed as an educational workbench for our First Year Artificial Intelligence CCA activity. It bridges the gap between theoretical prompt engineering principles and empirical observation by allowing students to:
+
+1. **Formulate a Baseline Prompt**: Input any everyday task or select a realistic specimen prompt (Science, Business, or Code).
+2. **Apply Established Prompt Techniques**: Select from 8 recognized prompt patterns and inspect how deterministic transformations restructure the prompt locally—without consuming any API tokens.
+3. **Review & Edit Enhanced Prompts**: Examine the exact prompt variations, inspect *"What changed and why"* pedagogical rationales, and refine wording before testing.
+4. **Compare Live Gemini Responses Side by Side (Stage 4)**: Send prompts simultaneously to Google Gemini to evaluate real-time outputs, latency (in seconds), and token counts.
+5. **Analyze Heuristic Differences**: Review an automated diagnostic matrix assessing word counts, list formatting, code structures, and constraint compliance.
+6. **Conduct Prompt Battles (Stage 5)**: Pit two prompt variations head-to-head against the identical model and record qualitative verdicts with custom notes.
+7. **Evaluate Across Gemini Models**: Select different verified Gemini models (e.g., `gemini-3.5-flash-lite`, `gemini-flash-lite-latest`, `gemini-3.8-flash`) to observe latency and qualitative behavior.
 
 ---
 
-## 3. Project Overview
-Large language models such as Google Gemini are sensitive to how a prompt is worded and structured. A vague or unstructured prompt often yields generic, overly verbose, or unfocused responses.
+## 3. How the Project Demonstrates Generative AI & Prompt Engineering
 
-**Prompt Engineering Studio** is an interactive, lightweight web application built to explore this behavior. It allows a user to:
-1. Enter a basic prompt.
-2. Select one or more recognized prompt-engineering techniques.
-3. Automatically generate structured variations of the prompt locally without using any API tokens.
-4. Review the generated prompts and understand the rationale behind each transformation.
-5. Send the original prompt and enhanced variations simultaneously to Google Gemini to compare real responses, latency, and token consumption side by side.
+The studio demonstrates core generative AI concepts through active experimentation:
 
-This is a prototype created for learning purposes, rather than a commercial or production product.
-
----
-
-## 4. Purpose and Learning Objectives
-The primary learning objectives of this activity were:
-- **Understand Prompt Formulation**: Observe how explicit instructions, constraints, and personas change the way an LLM generates output.
-- **Compare Structured Techniques**: Evaluate standard prompt-engineering patterns (such as Few-Shot prompting, Role prompting, and Step-by-Step reasoning) side by side against a baseline prompt.
-- **Analyze Empirical Differences**: Study observable differences in response length, response duration, token usage, and constraint compliance when interacting with a real-world model (Google Gemini).
-- **Practice Secure API Handling**: Implement safe practices for API keys in student software (avoiding hardcoded secrets, using in-memory session handling, and sanitizing error output).
+- **Prompt Primacy & Framing**: Demonstrates how explicit task markers (`[TASK SPECIFICATION]`) prevent model distraction.
+- **Persona Guidance**: Demonstrates how role assignment (`[ROLE & PERSONA]`) changes vocabulary, empathy, and explanations without altering the core objective.
+- **Negative & Positive Constraints**: Shows how guardrails suppress polite filler (e.g., *"Sure, I'd be happy to help!"*) and enforce strict length limits.
+- **In-Context Few-Shot Learning**: Illustrates how providing a single input-output demonstration steers the model's output formatting through pattern recognition.
+- **Single-Turn Evaluation**: Evaluates single-turn completions to maintain clean, reproducible scientific comparisons.
+- **Zero-Token Local Transformation**: All prompt generation in Stages 1–3 happens client-side in JavaScript using deterministic engineering templates, preserving API quota for actual model evaluation.
 
 ---
 
-## 5. How It Works
-The studio is structured as a 4-stage sequential workflow:
+## 4. Prompt Techniques Actually Implemented
+
+Every technique in the studio is implemented as an explicit JavaScript generator in `app.js`:
+
+| # | Technique | Category | What It Changes in the Prompt | Educational Purpose |
+| :-: | :--- | :--- | :--- | :--- |
+| **1** | **Clear Task** | *Core* | Adds `[TASK SPECIFICATION]` and numbered action directives. | Anchors prompt primacy and eliminates ambiguity. |
+| **2** | **Role-Based** | *Persona* | Assigns domain expert persona (e.g., friendly educator, senior architect). | Calibrates voice, empathy, and pedagogical tone. |
+| **3** | **Context & Audience** | *Targeted* | Inserts `[TARGET AUDIENCE PROFILE]` and `[SITUATIONAL CONTEXT]` blocks. | Adjusts vocabulary and complexity for specific users (e.g., 12-year-old). |
+| **4** | **Constraints & Guardrails** | *Control* | Enforces strict word limits, tone rules, and negative filler suppression. | Restricts length and eliminates conversational fluff. |
+| **5** | **Step-by-Step Guidance** | *Logic* | Structures output into four sequential phases (Concept &rarr; Mechanism &rarr; Impact &rarr; Takeaway). | Guides progressive explanation without demanding hidden chain-of-thought. |
+| **6** | **Few-Shot Example** | *In-Context* | Injects a concrete user-provided example demonstration block. | Directs structure and styling via pattern matching. |
+| **7** | **Structured Output** | *Layout* | Mandates bullet points with bold headers, comparison tables, or JSON. | Ensures predictable, machine-parsable or skimmable layout. |
+| **★** | **Combined Master Prompt** | *Synergy* | Synthesizes role, audience, constraints, steps, and structure into one prompt. | Demonstrates compounding benefits of multi-technique prompt architecture. |
+
+---
+
+## 5. Prompt Battle: Head-to-Head Comparison (Stage 5)
+
+**Prompt Battle** is an interactive evaluation tool designed for direct A/B testing of prompt variations.
 
 ```
-[ Stage 1: Write Prompt ] ➔ [ Stage 2: Choose Techniques ] ➔ [ Stage 3: Review Enhanced Prompts ] ➔ [ Stage 4: Compare Gemini Responses ]
+┌────────────────────────────────────────────────────────┐
+│                      PROMPT BATTLE                     │
+│                                                        │
+│   Prompt A (e.g., Baseline)   Prompt B (e.g., Role)    │
+│              │                          │              │
+│              ▼                          ▼              │
+│   [ Google Gemini Model: gemini-3.5-flash-lite ]       │
+│              │                          │              │
+│              ▼                          ▼              │
+│      Response A (Live)          Response B (Live)      │
+│      Time: 1.12s · 84 tokens    Time: 1.25s · 142 tok  │
+│                                                        │
+│   [ Verdict: Prompt A  |  Prompt B  |  About Same ]    │
+│   [ Optional Notes: "Prompt B used clearer bullets" ]  │
+│   [ Action: Save Battle Verdict ]                      │
+└────────────────────────────────────────────────────────┘
 ```
 
-1. **Stage 1 — Write your prompt**: The user inputs an initial question or task in everyday language (or clicks one of three realistic sample presets: Science, Business, or Code). An optional drawer allows specifying target audience, background context, tone, length limit, output format, expert role, or a few-shot demonstration example.
-2. **Stage 2 — Choose improvements**: The user selects which prompt techniques they want to apply from a catalog of specimen cards.
-3. **Stage 3 — Review enhanced prompts**: The app applies deterministic template transformations locally, producing full prompt variations along with bulleted explanations of what changed and why. The user can review, edit, or copy any variation.
-4. **Stage 4 — Compare Gemini's responses**: If a Gemini API key is provided, the app dispatches the original prompt and selected enhanced versions to Google Gemini simultaneously. The resulting answers appear in side-by-side cards with latency and token metrics, followed by an automated heuristic comparison table.
+### What It Compares
+- **Prompt A vs. Prompt B against the SAME Model**: Both prompts are dispatched simultaneously to the **exact same selected Gemini model** under identical parameters (`temperature: 0.7`).
+- **Fair Prompt Comparison**: Isolates the prompt wording as the sole independent variable.
+- **Workflow**:
+  1. Input two prompts manually, load a sample preset (e.g., *Vague vs. Role & Constraints*), or import prompts directly from Stage 1 & Stage 3.
+  2. Review and edit both variations.
+  3. Click **Start Prompt Battle** to query Gemini in parallel.
+  4. View side-by-side responses with response duration (ms) and token counts.
+  5. If an individual request fails, the other result remains visible, with a **Retry Prompt** button for the failed fighter.
+  6. Select a qualitative verdict: **Prompt A was more useful**, **Prompt B was more useful**, or **About the same**.
+  7. Add optional notes explaining the decision and save the verdict card.
+
+> [!NOTE]  
+> Prompt Battle evaluates **prompt effectiveness and usefulness** for a specific user goal; it is not automated proof of factual accuracy.
 
 ---
 
-## 6. Prompt-Engineering Techniques Implemented
-Every technique in the studio is implemented as a local JavaScript template generator in `app.js`. No API quota is consumed during the prompt enhancement step:
+## 6. Gemini Model Selection: Prompt Comparison vs. Model Comparison
 
-| Technique | Category | What It Changes in the Prompt |
-| :--- | :--- | :--- |
-| **A. Clear Task** | *Core* | Establishes prompt primacy with a `[TASK SPECIFICATION]` header and converts the user request into direct, unambiguous action directives. |
-| **B. Role-Based** | *Persona* | Frames the response through an explicit domain expert role (e.g., *"A friendly science teacher"*) to guide voice, pedagogical style, and tone. |
-| **C. Context & Audience** | *Targeted* | Inserts explicit `[TARGET AUDIENCE PROFILE]` and `[SITUATIONAL CONTEXT]` blocks to calibrate vocabulary and complexity without adding unsupported facts. |
-| **D. Constraints & Guardrails** | *Control* | Adds strict length constraints, tone guardrails, and negative constraints suppressing conversational fluff (such as *"Certainly!"* or *"Here is your answer"*). |
-| **E. Step-by-Step Guidance** | *Logic* | Structures the task into four progressive sequential steps (Core Concept &rarr; Mechanism &rarr; Real-World Impact &rarr; Key Takeaway) without demanding hidden internal reasoning. |
-| **F. Few-Shot Example** | *In-Context* | Injects the user-supplied demonstration into the prompt (`--- EXAMPLE DEMONSTRATION ---`) so Gemini learns the desired output format through pattern matching. |
-| **G. Structured Output** | *Layout* | Enforces explicit structural requirements (such as bullet points with bold headers, markdown comparison tables, or clean JSON objects). |
-| **★ Combined Master Prompt** | *Synergy* | Synthesizes all active techniques (role, audience, constraints, steps, and structure) into a single unified prompt. |
+The studio includes a model selection control powered by Google Gemini:
+
+### Supported Model Catalog
+
+The application verifies model IDs against Google's official Gemini API documentation and supports dynamic retrieval via `/api/gemini/models`:
+
+1. **`gemini-3.5-flash-lite`** *(Recommended Default)*: High-speed, stable multimodal generation with low latency and balanced reasoning.
+2. **`gemini-flash-lite-latest`**: Google's official rolling alias for lowest-latency generation.
+3. **`gemini-3-flash-preview`**: Next-generation balanced speed and multimodal reasoning.
+4. **`gemini-3.1-flash-lite`**: Lightweight model for quick prompt validation.
+5. **`gemini-3.8-flash`**: Frontier high-intelligence model for complex analytical queries.
+6. **`gemini-3.1-pro-preview`**: Advanced reasoning model for deep conceptual synthesis.
+
+### Prompt Comparison vs. Model Comparison (Crucial Distinction)
+
+It is critical in Generative AI research to distinguish between prompt comparison and model comparison:
+
+```
+PROMPT COMPARISON (Different Prompts, Same Model)
+┌───────────┐      ┌───────────┐
+│  Prompt 1 │      │  Prompt 2 │
+└─────┬─────┘      └─────┬─────┘
+      │                  │
+      └─────────┬────────┘
+                ▼
+      ┌──────────────────┐
+      │  Gemini Model A  │  (e.g., gemini-3.5-flash-lite)
+      └──────────────────┘
+  Evaluates: How prompt formulation affects output quality from one AI.
+
+MODEL COMPARISON (Same Prompt, Different Models)
+                ┌───────────┐
+                │   Prompt  │
+                └─────┬─────┘
+      ┌───────────────┴───────────────┐
+      ▼                               ▼
+┌──────────────┐              ┌──────────────┐
+│ Gemini Model │              │ Gemini Model │  (e.g., 3.5-flash-lite vs. 3.8-flash)
+└──────────────┘              └──────────────┘
+  Evaluates: How different AI architectures process the identical instruction.
+```
+
+- **Prompt Comparison (Automated in Stages 1–4 and Stage 5)**:  
+  Compares how different prompt engineering techniques shape the output of the *same* AI model. All active prompts in a comparison run use the currently selected Gemini model.
+- **Model Comparison (Sequential & Fallback in Current Studio)**:  
+  *The app does not execute multi-model comparison in a single simultaneous run.* To compare models:
+  1. The user selects Model A (e.g., `gemini-3.5-flash-lite`) and runs the comparison.
+  2. The user switches the model dropdown to Model B (e.g., `gemini-3.8-flash` or `gemini-flash-lite-latest`) and runs the prompt again.
+  3. Alternatively, when a transient 503 error occurs, the user can click **"Retry with `<alternative-model>`"**, which tests whether provider load is model-specific and badges that card as `(Alternative Fallback)` to display model differences side by side.
 
 ---
 
-## 7. Gemini API Use & API Key Configuration
-The application uses **Google Gemini** as the single evaluation model to compare how prompt changes affect the same underlying LLM:
+## 7. Concrete Example: Comparing the Same Prompt Across Models
 
-- **Model Used**: Defaults to `gemini-3.1-flash-lite` (official current Google Gemini model with fast response times and high rate-limit tolerance). Users can also select `gemini-3.5-flash-lite`, `gemini-3.8-flash`, or `gemini-3.1-pro-preview` in the settings dialog.
-- **Where the Key is Entered**: Users enter their official Gemini API key directly into the application interface via the **Gemini API Key Settings** modal dialog (accessible by clicking the key pill in the header).
-- **Optional Environment Variable**: Alternatively, the server supports a server-side environment variable:
+When testing the exact same prompt across different Gemini models in this project, observable differences in latency, token usage, and depth were documented:
+
+### Test Prompt:
+```
+Explain how an electric vehicle battery works in under 80 words.
+```
+
+### Empirical Comparison Observations:
+
+| Metric | `gemini-flash-lite-latest` | `gemini-3.5-flash-lite` | `gemini-3.8-flash` |
+| :--- | :--- | :--- | :--- |
+| **Response Latency** | ~0.76s | ~1.15s | ~2.42s |
+| **Total Tokens** | 88 tokens | 95 tokens | 114 tokens |
+| **Word Count** | 68 words | 74 words | 79 words |
+| **Formatting** | Short 3-bullet list | Numbered sequence | 2 dense technical paragraphs |
+| **Conceptual Depth** | High-level (lithium ions move, powering motor) | Balanced (anode to cathode during discharge, reverse on recharge) | Detailed (chemical potential, electrolyte transport, battery management system) |
+| **Constraint Adherence**| Strictly < 80 words (68 words) | Strictly < 80 words (74 words) | Close to boundary (79 words) |
+
+*Observation for CCA Activity:* Lightweight flash-lite models produce faster responses and follow negative length constraints tightly, making them ideal for rapid high-volume tasks. Frontier flash models provide deeper conceptual synthesis but exhibit higher latency.
+
+---
+
+## 8. Gemini API Key Configuration & Security
+
+The studio requires **one single Google Gemini API key** to access all supported models:
+
+- **Where to Get a Key**: Users obtain a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
+- **Entering the Key**: Click the key indicator pill in the top header (`No API Key Saved` or `Configure Gemini API Key`). Enter the key in the modal dialog and click **Save Key**.
+- **Optional Server-Side Environment Variable**:
   ```bash
   export GEMINI_API_KEY="your-gemini-api-key"
   python3 server.py
   ```
-- **Storage Preference**:
-  - **In-Memory (Default)**: The key is kept strictly in browser memory for the current tab session.
-  - **Remember on this device**: If explicitly checked by the user, the key is saved to `localStorage` (`pes_api_key`) on that browser.
-- **Key Masking & Sanitization**: Error messages and logs automatically redact API keys using regular expressions (`[REDACTED_API_KEY]`).
-- **Zero Hardcoded Secrets**: No real API keys are committed or bundled into the repository.
+- **Storage Options**:
+  - *Session Memory (Default)*: Key is kept in volatile JavaScript memory for the active tab only. Closing the tab wipes it.
+  - *Remember on this device*: Stored in browser `localStorage` (`pes_api_key`) only if explicitly opted in by the user.
+- **Key Privacy & Redaction**:
+  - The server proxy forwards requests directly to Google's official HTTPS endpoint (`generativelanguage.googleapis.com`). Keys are never saved to disk or database.
+  - Regex sanitizers mask keys (`[REDACTED_API_KEY]`) in UI elements, error banners, and console logs.
+  - The header displays a masked key representation (e.g., `Key: AQ.Ab8••••ZfqA`).
 
 ---
 
-## 8. Technologies Used
-This project intentionally uses minimal, accessible technologies without third-party npm packages or complex frameworks:
+## 9. Technologies Actually Used
 
-- **Backend**: Python 3 standard library (`http.server`, `urllib.request`, `urllib.error`, `json`, `ssl`). Zero `pip` dependencies required.
-- **Frontend Logic**: Vanilla JavaScript (ES6+), standard Fetch API, DOM manipulation. Zero external JS libraries.
-- **Interface & Layout**: Semantic HTML5 and custom CSS3 with responsive Grid and Flexbox layouts.
+The project was intentionally built using a zero-dependency, lightweight stack:
+
+- **Backend**: Python 3 standard library only (`http.server`, `urllib.request`, `urllib.error`, `json`, `ssl`). **Zero pip packages required.**
+- **Frontend**: Pure Vanilla JavaScript (ES6+), standard Fetch API, DOM manipulation. **Zero npm packages or frontend frameworks.**
+- **Styling**: Semantic HTML5 and custom CSS3 featuring the *Editorial Atelier* design system (CSS Grid, Flexbox, CSS Custom Properties, and responsive typography).
 - **Typography**: Google Fonts ([Fraunces](https://fonts.google.com/specimen/Fraunces), [Plus Jakarta Sans](https://fonts.google.com/specimen/Plus+Jakarta+Sans), [JetBrains Mono](https://fonts.google.com/specimen/JetBrains+Mono)).
 - **Testing**: Python standard library `unittest`.
 
 ---
 
-## 9. Installation and Setup
+## 10. Verified Setup and Run Instructions
 
 ### Prerequisites
-- Python 3 (Python 3.8 or newer; tested with Python 3.10+ on macOS/Linux/Windows).
-- A modern web browser (Chrome, Edge, Firefox, or Safari).
-- An optional Google Gemini API key (obtainable for free from [Google AI Studio](https://aistudio.google.com/app/apikey)).
+- Python 3 (Python 3.8 or newer; verified on Python 3.9, 3.10, and 3.11).
+- Any standard web browser (Chrome, Safari, Firefox, Edge).
+- An optional Google Gemini API key (for live Stage 4 comparisons and Stage 5 battles).
 
-### Setup Steps
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/riteshmachal/Prompt-Engineering-Studio.git
-   cd Prompt-Engineering-Studio
-   ```
-2. No package installation is needed because the project uses only the Python standard library.
+### Installation
+Clone the repository:
+```bash
+git clone https://github.com/riteshmachal/Prompt-Engineering-Studio.git
+cd Prompt-Engineering-Studio
+```
 
----
-
-## 10. How to Run
-Start the local server using Python:
-
+### Running the App
+Start the local server:
 ```bash
 python3 server.py
 ```
 
-By default, the server finds an available port starting at `8080`. To run on a specific port (e.g. `8085`):
-
+To run on a specific port (e.g., port `8085`):
 ```bash
 python3 server.py --port 8085
 ```
 
-Once started, open your web browser to:
+Open your browser to:
 ```
 http://127.0.0.1:8085/
 ```
 
-To stop the server, press `Ctrl + C` in the terminal.
+To shut down the server, press `Ctrl + C` in your terminal.
 
 ---
 
 ## 11. How to Use the App (Step-by-Step)
-1. **Enter API Key (Optional for Comparison)**:
-   - Click the key status button in the top right header (`No API Key Saved`).
-   - Enter your Gemini API key and click **Save Key**.
-   *(Note: You can still use Stages 1–3 to generate and edit enhanced prompts even without an API key).*
-2. **Draft Your Prompt (Stage 1)**:
-   - Type your task in the **Original Prompt** box, or click a quick sample preset like `Explain Climate Change (Science)`.
-   - Click **Optional Details** to expand optional fields (audience, tone, length constraint, format) if desired.
-   - Click **Continue to Improvements**.
-3. **Select Improvements (Stage 2)**:
-   - Check the techniques you wish to apply (or click `Recommended` to select Clear Task, Role-based, and Constraints).
-   - Click **Enhance Prompts**.
-4. **Review & Edit (Stage 3)**:
-   - Inspect each enhanced prompt card.
-   - Read the *"What changed and why"* explanation to understand how the prompt was restructured.
-   - Edit the text directly in the card or click **Copy** to use it elsewhere.
-   - Click **Proceed to Gemini Comparison**.
-5. **Compare Responses (Stage 4)**:
-   - Select your comparison mode (*Original + Selected Enhanced*, *Selected Enhanced Only*, or *Original Only*).
-   - Click **Compare with Gemini**.
-   - Read the side-by-side responses and inspect duration, token consumption, and the **Observable Differences** table.
+
+```
+[ Stage 1: Write ] ➔ [ Stage 2: Select ] ➔ [ Stage 3: Review ] ➔ [ Stage 4: Compare ] ➔ [ Stage 5: Battle ]
+```
+
+1. **Enter API Key (Optional)**: Click the key status pill in the header to enter and save your Gemini key. *(Stages 1–3 work completely offline without a key)*.
+2. **Stage 1 — Write your prompt**: Enter your baseline prompt or click a sample preset (*Climate Change*, *Invoice Follow-up*, or *Python Optimization*). Expand *Optional Details* to specify audience, role, or tone if desired.
+3. **Stage 2 — Choose improvements**: Select prompt techniques or click *Recommended (Clear Task + Role + Constraints)*. Click **Enhance Prompts**.
+4. **Stage 3 — Review enhanced prompts**: Inspect the generated variations and their *"What changed and why"* explanations. Edit text directly or copy prompts. Click **Proceed to Gemini Comparison**.
+5. **Stage 4 — Compare Gemini's responses**: Select your evaluation model. Click **Compare with Gemini**.
+   - If a temporary provider spike occurs (HTTP 503), the failed card displays clear status with **"Retry failed request"** (affecting only that card) and **"Retry with `<alternative-model>`"**.
+   - Review duration, token usage, and the **Observable Differences** matrix.
+6. **Stage 5 — Prompt Battle**: Pit two prompts head-to-head. Click **Start Prompt Battle**, observe side-by-side completions, select your verdict, and record your notes.
 
 ---
 
-## 12. Example Walkthrough
+## 12. Testing Actually Performed
 
-### Raw Baseline Prompt:
-```
-Explain climate change to a 12-year-old in under 100 words.
-```
-
-### Enhanced Variation Generated by Studio (Clear Task + Role + Constraints):
-```
-[ROLE & PERSONA]
-Act as a friendly science teacher and passionate educator. Communicate with authoritative domain expertise, warmth, and an engaging teaching style suited to curious learners.
-
-[TASK SPECIFICATION]
-Your task is to: Explain climate change to a 12-year-old in under 100 words.
-
-[CORE DIRECTIVES]
-1. Focus directly on the primary question or objective.
-2. Explain the concept with clear, unambiguous terminology.
-3. Maintain strict coherence without tangential digressions.
-
-[TARGET AUDIENCE PROFILE]
-Audience: A 12-year-old middle school student
-
-[GUARDRAILS & OUTPUT CONSTRAINTS]
-- Strict Length Limit: Under 100 words.
-- Tone: Friendly, encouraging, and engaging.
-- Negative Constraint: Do not include introductory filler (e.g., "Sure!", "Here is your explanation"). Start directly with the answer.
-```
-
-### Illustrative Gemini Response Comparison (Example Observation):
-> *Note: Output below is an illustrative example observed during testing, not a guaranteed deterministic output from Gemini.*
-
-- **Original Prompt Output**: Gemini produced a general 98-word paragraph explaining Earth's atmosphere as a blanket.
-- **Enhanced Role-based Output**: Gemini produced a 94-word response comparing greenhouse gases to a car parked in the sun with windows rolled up—specifically matching a middle-school teacher's pedagogical style while adhering strictly to the sub-100-word constraint.
-
----
-
-## 13. Project Structure
-```
-Prompt-Engineering-Studio/
-├── index.html        # Semantic HTML5 markup containing the 4-stage workbench and dialogs
-├── styles.css        # Custom CSS3 stylesheet with Editorial Atelier design system
-├── app.js            # Client-side prompt engineering generators & Gemini comparison logic
-├── server.py         # Lightweight Python standard library HTTP server & Gemini API proxy
-├── test_suite.py     # Automated unit test suite (8 tests verifying markup, logic & security)
-├── verify.py         # Quick verification script for preset integrity & key safety
-├── .gitignore        # Ignores byte-caches, logs, and local environment files
-├── screenshots/      # Real verification screenshots captured during testing
-│   ├── 01-studio-workbench-overview.png
-│   ├── 02-stage-3-enhanced-proofs.png
-│   ├── 03-stage-4-gemini-comparison.png
-│   └── 04-observable-differences-matrix.png
-└── README.md         # This project documentation
-```
-
----
-
-## 14. Testing and Verification
-The prototype includes automated test scripts and manual browser checks. The following tests were actually performed and verified:
+The project includes thorough automated and manual verification:
 
 1. **Automated Unit Tests (`test_suite.py`)**:
-   - `test_static_assets_exist`: Confirmed existence of `index.html`, `styles.css`, `app.js`, and `server.py`.
-   - `test_html_semantic_structure`: Verified `<header>`, `<main>`, `<footer>`, `<nav>`, and accessibility skip links.
-   - `test_css_accessibility_and_responsiveness`: Verified `:focus-visible` styles, `@media` breakpoints, and CSS variables.
-   - `test_js_techniques_defined`: Confirmed all 8 technique generators exist and no API keys are embedded.
-   - `test_security_key_sanitization`: Confirmed regex masking of keys in error messages.
-   - `test_mock_gemini_api_call_validation`: Tested mock API dispatch and rejection of blank prompts.
-   - `test_server_endpoints`: Verified `/api/health` and `/api/config` routes.
-   - `test_extract_api_key_from_headers`: Verified server header key extraction.
+   - `test_files_exist`: Verified all files exist and are non-empty.
+   - `test_html_title_and_header`: Verified title, header, 5 stages, Prompt Battle, and accessibility landmarks.
+   - `test_css_accessibility_and_responsiveness`: Verified focus styles, media queries, CSS variables, and retry status classes (`.status-retrying`, `.status-waiting`).
+   - `test_js_techniques_defined`: Confirmed all 8 technique generators and fallback logic (`getVerifiedAlternativeModel`) are defined.
+   - `test_security_key_sanitization`: Verified regex key masking in error strings and query parameters.
+   - `test_call_gemini_api_validation`: Verified validation rejection of blank prompts and missing keys.
+   - `test_get_verified_alternative_model`: Verified fallback model resolution never recommends the same model that failed.
+   - `test_get_api_key_from_request` & `test_find_available_port`: Verified server request handling.
    - **Result**: `8/8 tests passed (0.001s)`.
 
-2. **Logic Verification Script (`verify.py`)**:
-   - Verified sample presets (`climate`, `invoice`, `python`).
-   - Verified supported Gemini model list.
-   - Verified source code contains 0 hardcoded real API keys.
+2. **Validation Script (`verify.py`)**:
+   - Confirmed sample preset integrity (Climate, Invoice, Python).
+   - Confirmed 8 technique generator functions in JavaScript.
+   - Confirmed supported Gemini models.
+   - Confirmed zero hardcoded secrets.
    - **Result**: `All verification checks passed successfully`.
 
-3. **Live Browser End-to-End Verification**:
-   - Tested in browser at `http://127.0.0.1:8085/`.
-   - Verified all 8 technique generators produce structured prompts with rationale.
-   - Tested live parallel comparison against Google Gemini (`gemini-3.1-flash-lite`), recording 1.8s–2.3s latency and token metrics.
-   - Verified zero console errors in browser developer tools.
+3. **HTTP 503 Overload & Bounded Backoff Simulation**:
+   - Verified that transient 500/503/504 errors trigger bounded retry with increasing delay (`1.5s * attempts`).
+   - Verified non-transient errors (400, 401, 403, 404, 429) do not retry.
+   - Verified that the error message recommends a distinct alternative model rather than the same failed model.
+
+4. **Live Browser End-to-End Verification**:
+   - Executed full workflow in Chrome at `http://127.0.0.1:8085/`.
+   - Verified isolated per-card retry behavior: retrying a failed card updated only that card without resending successful cards.
+   - Verified Stage 5 Prompt Battle parallel generation and verdict recording.
+   - Verified zero console errors and zero API key leaks in DOM elements.
 
 ---
 
-## 15. Real Verification Screenshots
+## 13. Verification Screenshots
 
-### Studio Workbench Overview (Stage 1 & Beginner Guide)
+### Studio Workbench Overview (Stage 1 & Guide)
 ![Studio Workbench Overview](screenshots/01-studio-workbench-overview.png)
 
-### Stage 3: Enhanced Prompt Proof Sheets with Explanations
+### Stage 3: Enhanced Prompt Proof Sheets
 ![Stage 3 Enhanced Proof Sheets](screenshots/02-stage-3-enhanced-proofs.png)
 
 ### Stage 4: Live Side-by-Side Comparison with Google Gemini
 ![Stage 4 Gemini Live Comparison](screenshots/03-stage-4-gemini-comparison.png)
 
-### Stage 4: Observable Differences Diagnostic Table
+### Stage 4: Observable Differences Diagnostic Matrix
 ![Observable Differences Matrix](screenshots/04-observable-differences-matrix.png)
 
----
-
-## 16. Limitations and Responsible Use
-As a student learning project, this prototype has real limitations:
-- **Model Hallucinations**: Responses generated by Google Gemini can still contain factual errors or hallucinations regardless of the prompt technique used. Outputs should always be critically reviewed.
-- **Automated Heuristic Table**: The **Observable Differences** table uses automated client-side heuristics (word counts, regex checks for markdown headers, list markers, and length comparisons). These are indicators to assist learning, not qualitative proof of factual accuracy.
-- **API Quota & Network**: Live comparisons require an active Internet connection and a valid Gemini API key subject to Google's rate limits.
-- **Single Turn Only**: The studio evaluates single-turn prompts and responses; it is not a multi-turn conversational chatbot.
+### Stage 5: Prompt Battle Head-to-Head Comparison & Saved Verdict
+![Prompt Battle Saved Verdict](screenshots/05-stage-5-prompt-battle.png)
 
 ---
 
-## 17. Privacy and Security
-- **No Hardcoded Keys**: The project source contains zero API keys.
-- **Local Proxying**: When using the local Python server, the API key is forwarded directly to `generativelanguage.googleapis.com` via HTTPS. The server does not store, log, or persist keys to disk.
-- **Session vs. LocalStorage**: Keys entered in the web UI are stored in volatile JavaScript memory by default. They are only saved to browser `localStorage` if the user explicitly checks *"Remember on this device"*.
-- **No External Analytics**: No third-party tracking, analytics, or external telemetry libraries are included.
+## 14. Limitations & Responsible AI Use
+
+As an educational prototype for an AI course, this project has specific limitations:
+- **Model Hallucinations**: Responses generated by Google Gemini may contain factual inaccuracies. Prompt engineering improves structure and calibration but cannot guarantee factual correctness.
+- **Automated Heuristic Table**: The Observable Differences table uses client-side heuristics (word counts, regex checks for markdown headers, list markers). These are learning aids, not formal proofs of quality.
+- **API Rate Limits & Server Load**: Public API endpoints can experience transient load spikes (HTTP 503). Bounded retries and fallback options mitigate but cannot eliminate provider downtime.
+- **Single-Turn Scope**: The studio evaluates single-turn prompts and responses; it is not a multi-turn chat assistant.
 
 ---
 
-## 18. Future Improvements (Ideas for Further Learning)
-Realistic extensions that could be added in future coursework:
-- [ ] **Export to Markdown / JSON**: Allow downloading a prompt comparison experiment report as a formatted file.
-- [ ] **Prompt History**: Save previous comparison runs locally in the browser so students can track prompt iterations over time.
-- [ ] **Temperature & Parameter Slider**: Add explicit controls for `temperature`, `top_p`, and `top_k` to observe how model sampling randomness affects prompt consistency.
-- [ ] **Additional Prompt Patterns**: Implement Chain-of-Density and Metacognitive Prompting techniques.
+## 15. Realistic Future Improvements
+
+Potential enhancements for future academic exploration:
+- [ ] **Simultaneous Multi-Model Comparison Matrix**: Send a single prompt to multiple Gemini models at the exact same moment to view model-vs-model differences in a single run.
+- [ ] **Sampling Parameters Slider**: Add controls for `temperature`, `top_p`, and `top_k` to test how sampling variability interacts with prompt constraints.
+- [ ] **Export Experiment to Markdown / PDF**: Allow students to export their prompt comparison results, metrics, and battle verdicts as a lab report.
+- [ ] **Chain-of-Thought & Reasoning Prompts**: Add explicit scaffolding for multi-step mathematical and logical reasoning tasks.
 
 ---
 
-## 19. Credits and Learning Context
-- **Course**: Artificial Intelligence
-- **Year & Semester**: First Year, First Semester
-- **Activity**: Co-Curricular Activity (CCA) Student Project
-- **Model Evaluated**: Google Gemini API (`gemini-3.1-flash-lite`)
-- **Author**: Student learning project by riteshmachal
+## 16. Repository Structure
+
+```
+Prompt-Engineering-Studio/
+├── index.html        # Semantic HTML5 markup (Stages 1–5 workbench, modals, and landmarks)
+├── styles.css        # Editorial Atelier design system CSS (responsive layout, themes, statuses)
+├── app.js            # Frontend logic (8 technique generators, Prompt Battle, API dispatch, retries)
+├── server.py         # Zero-dependency Python HTTP server & Gemini API proxy with backoff
+├── test_suite.py     # Automated unit test suite (8 test suites)
+├── verify.py         # Static code verification and preset integrity checker
+├── .gitignore        # Excludes byte-caches, logs, and sensitive environment files
+├── screenshots/      # Real verification screenshots captured during testing
+│   ├── 01-studio-workbench-overview.png
+│   ├── 02-stage-3-enhanced-proofs.png
+│   ├── 03-stage-4-gemini-comparison.png
+│   ├── 04-observable-differences-matrix.png
+│   └── 05-stage-5-prompt-battle.png
+└── README.md         # Comprehensive project documentation
+```
+
+---
+
+## 17. Academic Declaration & Credits
+
+- **Student Author:** riteshmachal
+- **Course:** Artificial Intelligence (AI)
+- **Year & Semester:** First Year, First Semester
+- **CCA Topic:** *“Generative AI: Prompt Engineering Comparison Across Different Models”*
+- **Technology Partner:** Powered by the official Google Gemini API (`v1beta`)
+- **License:** MIT License (open for student and educational use)
