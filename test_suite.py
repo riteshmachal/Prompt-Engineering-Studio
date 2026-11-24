@@ -94,6 +94,10 @@ class TestStaticAssets(unittest.TestCase):
         self.assertIn(":focus-visible", css, "Must include visible focus styles for accessibility")
         self.assertIn("@media (max-width:", css, "Must include responsive media queries")
         self.assertIn("--primary", css, "Must define design system CSS variables")
+        self.assertIn(".status-retrying", css, "Must define retrying status style")
+        self.assertIn(".status-waiting", css, "Must define waiting status style")
+        self.assertIn(".card-retry-actions", css, "Must define card retry actions container")
+        self.assertIn(".meta-pill-alt", css, "Must define alternative fallback model pill")
 
     def test_js_techniques_defined(self):
         with open(os.path.join(PROJECT_DIR, "app.js"), "r", encoding="utf-8") as f:
@@ -101,6 +105,13 @@ class TestStaticAssets(unittest.TestCase):
 
         for tech in ["clear_task", "role", "audience", "constraints", "step_by_step", "few_shot", "structured", "combined"]:
             self.assertIn(tech, js, f"Technique {tech} must be defined in app.js")
+
+        # Verify retry functions and alternative fallback logic
+        self.assertIn("getVerifiedAlternativeModel", js, "Must define verified alternative model helper")
+        self.assertIn("retryComparisonCard", js, "Must implement single-card retry")
+        self.assertIn("retryBattleFighter", js, "Must implement single-fighter battle retry")
+        self.assertIn("btn-retry-card", js, "Must support per-card retry control")
+        self.assertIn("btn-retry-card-alt", js, "Must support per-card alternative model retry")
 
         # Ensure no hardcoded secret
         self.assertNotIn("AIzaSyB", js, "Never hardcode real Gemini API key in JS source")
@@ -161,6 +172,17 @@ class TestPromptEngineeringTechniques(unittest.TestCase):
         self.assertIn("gemini-3.1-pro-preview", supported_ids)
         self.assertIn("gemini-flash-lite-latest", supported_ids)
         self.assertIn("gemini-3-flash-preview", supported_ids)
+
+        # Alternative model verification
+        alt_for_default = server.get_verified_alternative_model("gemini-3.5-flash-lite")
+        self.assertNotEqual(alt_for_default, "gemini-3.5-flash-lite", "Fallback must not recommend the same model that failed")
+        self.assertEqual(alt_for_default, "gemini-flash-lite-latest")
+
+        alt_for_latest = server.get_verified_alternative_model("gemini-flash-lite-latest")
+        self.assertEqual(alt_for_latest, "gemini-3.5-flash-lite")
+
+        alt_for_other = server.get_verified_alternative_model("gemini-3.8-flash")
+        self.assertEqual(alt_for_other, "gemini-3.5-flash-lite")
 
         # Check model retrieval fallback without key
         models_fallback = server.fetch_live_models_from_gemini("")

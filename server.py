@@ -64,6 +64,14 @@ SUPPORTED_MODELS = [
 DEFAULT_MODEL_ID = "gemini-3.5-flash-lite"
 
 
+def get_verified_alternative_model(current_model: str) -> str:
+    """Return a verified alternative model ID that is strictly different from current_model."""
+    clean = (current_model or "").replace("models/", "").strip()
+    if clean == DEFAULT_MODEL_ID:
+        return "gemini-flash-lite-latest"
+    return DEFAULT_MODEL_ID
+
+
 def fetch_live_models_from_gemini(api_key: str) -> List[Dict[str, Any]]:
     """Retrieve verified models from the official Google Gemini API using the provided API key."""
     if not api_key or not api_key.strip():
@@ -296,20 +304,24 @@ def call_gemini_api(prompt: str, model: str, api_key: str, temperature: float = 
             # Determine if transient and retryable
             is_transient = status_code in (500, 503, 504)
             if is_transient and attempts < total_allowed:
-                time.sleep(1.5)
+                # Bounded retry with increasing delay: 1.5s, then 3.0s
+                delay = 1.5 * attempts
+                time.sleep(delay)
                 continue
+
+            alt_model = get_verified_alternative_model(model)
 
             if status_code in (400, 401, 403) and ("API key" in clean_msg or "INVALID_ARGUMENT" in clean_msg or "PERMISSION_DENIED" in clean_msg or status_code == 403):
                 friendly = "Invalid or inactive Gemini API key. Please check your key in Google AI Studio and ensure it is saved correctly."
                 retryable = False
             elif status_code == 404:
-                friendly = f"Gemini model '{model}' was not found or is no longer available on this endpoint. Please select a supported model such as {DEFAULT_MODEL_ID}."
+                friendly = f"Gemini model '{model}' was not found or is no longer available on this endpoint. Please select a supported model such as {alt_model}."
                 retryable = False
             elif status_code == 429:
                 friendly = f"Gemini quota or rate limit exceeded for model '{model}'. Please wait a moment before sending another request, or check your quota in Google AI Studio."
                 retryable = False
             elif status_code in (500, 503, 504):
-                friendly = f"Google Gemini service is temporarily overloaded for model '{model}' ({status_code} Service Unavailable). Spikes in demand are temporary; please retry in a few moments or switch to a faster model like {DEFAULT_MODEL_ID}."
+                friendly = f"Google Gemini service is temporarily overloaded for model '{model}' ({status_code} Service Unavailable). Spikes in demand are temporary; please retry in a few moments or test with an alternative model like {alt_model}."
                 retryable = True
             else:
                 friendly = f"Gemini API error ({status_code}): {clean_msg}"
@@ -323,17 +335,20 @@ def call_gemini_api(prompt: str, model: str, api_key: str, temperature: float = 
                 "duration_ms": elapsed_ms,
                 "model": model,
                 "retryable": retryable,
-                "attempts": attempts
+                "attempts": attempts,
+                "alternative_model": alt_model if is_transient else None
             }
 
         except (urllib.error.URLError, TimeoutError) as e:
             elapsed_ms = round((time.perf_counter() - start_time) * 1000)
             if attempts < total_allowed:
-                time.sleep(1.5)
+                delay = 1.5 * attempts
+                time.sleep(delay)
                 continue
 
             reason_text = getattr(e, 'reason', str(e))
             clean_reason = sanitize_error_message(str(reason_text), api_key)
+            alt_model = get_verified_alternative_model(model)
             return {
                 "success": False,
                 "error": f"Network connection error: Unable to reach Google Gemini API ({clean_reason}). Please verify your internet connection.",
@@ -341,7 +356,8 @@ def call_gemini_api(prompt: str, model: str, api_key: str, temperature: float = 
                 "duration_ms": elapsed_ms,
                 "model": model,
                 "retryable": True,
-                "attempts": attempts
+                "attempts": attempts,
+                "alternative_model": alt_model
             }
 
         except Exception as e:

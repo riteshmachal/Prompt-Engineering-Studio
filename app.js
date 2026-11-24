@@ -1035,11 +1035,17 @@
     // Send independent requests in parallel
     const promises = queue.map(async (item, idx) => {
       try {
-        const onRetry = (attempt, maxAttempts) => {
+        const onRetry = (attempt, maxAttempts, phase, delayMs) => {
           const statusBadge = document.getElementById(`status-${item.id}`);
           if (statusBadge) {
-            statusBadge.className = 'result-status-badge status-generating';
-            statusBadge.innerHTML = `<span class="spinner-sm"></span><span>Retrying (${attempt}/${maxAttempts})...</span>`;
+            if (phase === 'waiting') {
+              const sec = (delayMs ? (delayMs / 1000).toFixed(1) : '1.5');
+              statusBadge.className = 'result-status-badge status-waiting';
+              statusBadge.innerHTML = `<span class="spinner-sm"></span><span>Waiting to retry (${sec}s)...</span>`;
+            } else {
+              statusBadge.className = 'result-status-badge status-retrying';
+              statusBadge.innerHTML = `<span class="spinner-sm"></span><span>Retrying (${attempt}/${maxAttempts})...</span>`;
+            }
           }
           dom.comparisonProgressText.textContent = `Retrying ${item.label} (temporary provider spike)...`;
         };
@@ -1056,10 +1062,15 @@
           duration_ms: result.duration_ms || 0,
           usage: result.usage || null,
           error: result.error || null,
-          model: result.model || state.selectedModel
+          model: result.model || state.selectedModel,
+          statusCode: result.statusCode,
+          retryable: result.retryable !== false,
+          alternative_model: result.alternative_model || getVerifiedAlternativeModel(result.model || state.selectedModel),
+          isAlternativeModel: result.isAlternativeModel || false
         };
       } catch (err) {
         completedCount++;
+        const altModel = getVerifiedAlternativeModel(state.selectedModel);
         state.comparisonResults[idx] = {
           ...item,
           status: 'error',
@@ -1067,7 +1078,11 @@
           duration_ms: 0,
           usage: null,
           error: sanitizeErrorText(err.message || 'Unknown network error', state.apiKey),
-          model: state.selectedModel
+          model: state.selectedModel,
+          statusCode: 0,
+          retryable: true,
+          alternative_model: altModel,
+          isAlternativeModel: false
         };
       } finally {
         updateResultCard(state.comparisonResults[idx]);
@@ -1092,8 +1107,17 @@
     showToast('Gemini comparison completed!', 'success');
   }
 
+  function getVerifiedAlternativeModel(currentModel) {
+    const clean = (currentModel || '').replace('models/', '').trim();
+    if (clean === 'gemini-3.5-flash-lite') {
+      return 'gemini-flash-lite-latest';
+    }
+    return 'gemini-3.5-flash-lite';
+  }
+
   async function executeGeminiRequest(promptText, model, key, onRetry) {
     const requestedModel = (model || state.selectedModel || 'gemini-3.5-flash-lite').trim();
+    const altModel = getVerifiedAlternativeModel(requestedModel);
 
     // 1. Attempt backend server proxy first
     try {
@@ -1128,7 +1152,8 @@
             error: data.error,
             statusCode: data.statusCode || serverRes.status,
             model: data.model || requestedModel,
-            retryable: false
+            retryable: false,
+            alternative_model: data.alternative_model || altModel
           };
         }
 
@@ -1140,7 +1165,8 @@
             error: data.error,
             statusCode: data.statusCode || serverRes.status,
             model: data.model || requestedModel,
-            retryable: data.retryable || false
+            retryable: data.retryable !== false,
+            alternative_model: data.alternative_model || altModel
           };
         }
       }
@@ -1185,11 +1211,13 @@
             errorMsg = errorJson.error.message;
           }
 
-          // Check for transient 500/503/504 errors: bounded retry with backoff
+          // Check for transient 500/503/504 errors: bounded retry with backoff (1.5s * attempts)
           const isTransient = resp.status >= 500 && resp.status <= 504;
           if (isTransient && attempts < maxAttempts) {
-            if (typeof onRetry === 'function') onRetry(attempts + 1, maxAttempts);
-            await new Promise(r => setTimeout(r, 1500));
+            const delay = 1500 * attempts;
+            if (typeof onRetry === 'function') onRetry(attempts + 1, maxAttempts, 'waiting', delay);
+            await new Promise(r => setTimeout(r, delay));
+            if (typeof onRetry === 'function') onRetry(attempts + 1, maxAttempts, 'retrying');
             continue;
           }
 
@@ -1197,11 +1225,11 @@
           if (resp.status === 400 || resp.status === 401 || resp.status === 403) {
             friendly = 'Invalid or rejected Gemini API key. Please check your key in Google AI Studio and re-enter it.';
           } else if (resp.status === 404) {
-            friendly = `Gemini model '${requestedModel}' was not found or is no longer available. Please select a supported model such as gemini-3.5-flash-lite.`;
+            friendly = `Gemini model '${requestedModel}' was not found or is no longer available. Please select a supported model such as ${altModel}.`;
           } else if (resp.status === 429) {
             friendly = `Gemini quota or rate limit exceeded for model '${requestedModel}'. Please wait a moment before sending another request.`;
           } else if (resp.status >= 500) {
-            friendly = `Google Gemini service is temporarily overloaded for model '${requestedModel}' (${resp.status} Service Unavailable). Spikes in demand are temporary; please retry in a few moments or switch to gemini-3.5-flash-lite.`;
+            friendly = `Google Gemini service is temporarily overloaded for model '${requestedModel}' (${resp.status} Service Unavailable). Spikes in demand are temporary; please retry in a few moments or test with an alternative model like ${altModel}.`;
           }
 
           return {
@@ -1210,7 +1238,8 @@
             statusCode: resp.status,
             duration_ms: elapsed,
             model: requestedModel,
-            retryable: isTransient
+            retryable: isTransient,
+            alternative_model: altModel
           };
         }
 
@@ -1249,17 +1278,20 @@
 
       } catch (err) {
         if (attempts < maxAttempts) {
-          if (typeof onRetry === 'function') onRetry(attempts + 1, maxAttempts);
-          await new Promise(r => setTimeout(r, 1500));
+          const delay = 1500 * attempts;
+          if (typeof onRetry === 'function') onRetry(attempts + 1, maxAttempts, 'waiting', delay);
+          await new Promise(r => setTimeout(r, delay));
+          if (typeof onRetry === 'function') onRetry(attempts + 1, maxAttempts, 'retrying');
           continue;
         }
         return {
           success: false,
-          error: `Network error connecting to Gemini: ${sanitizeErrorText(err.message, key)}`,
+          error: `Network error connecting to Gemini: ${sanitizeErrorText(err.message, key)}. Please verify your connection.`,
           statusCode: 0,
           duration_ms: 0,
           model: requestedModel,
-          retryable: true
+          retryable: true,
+          alternative_model: altModel
         };
       }
     }
@@ -1323,11 +1355,11 @@
 
     if (item.status === 'success') {
       statusEl.className = 'result-status-badge status-success';
-      statusEl.textContent = 'Success';
+      statusEl.textContent = 'Completed';
 
       // Render Markdown formatting
       bodyEl.innerHTML = renderMarkdown(item.response);
-      copyBtn.disabled = false;
+      if (copyBtn) copyBtn.disabled = false;
 
       // Meta items
       const durationSec = (item.duration_ms / 1000).toFixed(2);
@@ -1338,26 +1370,133 @@
         tokensHtml = `<span class="meta-pill" title="Tokens consumed">Tokens: ${item.usage.total_tokens} (In: ${inTokens} / Out: ${outTokens})</span>`;
       }
 
+      const modelBadge = item.isAlternativeModel
+        ? `<span class="meta-pill meta-pill-alt" title="This card used an alternative fallback model">Model: ${escapeHtml(item.model)} (Alternative Fallback)</span>`
+        : `<span class="meta-pill">Model: ${escapeHtml(item.model || state.selectedModel)}</span>`;
+
       metaEl.innerHTML = `
-        <span class="meta-pill">Model: ${escapeHtml(item.model || state.selectedModel)}</span>
+        ${modelBadge}
         <span class="meta-pill">Time: ${durationSec}s</span>
         ${tokensHtml}
         <span class="meta-pill">Words: ${countWords(item.response)}</span>
       `;
     } else {
       statusEl.className = 'result-status-badge status-error';
-      statusEl.textContent = 'Error';
+      statusEl.textContent = 'Failed';
+
+      const altModel = item.alternative_model || getVerifiedAlternativeModel(item.model || state.selectedModel);
+      const isRetryable = item.retryable !== false;
+
+      let retryControlsHtml = '';
+      if (isRetryable) {
+        retryControlsHtml = `
+          <div class="card-retry-actions">
+            <button type="button" class="btn btn-secondary btn-sm btn-retry-card" data-id="${item.id}" title="Retry this failed prompt only">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mr-1"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              <span>Retry failed request</span>
+            </button>
+            <button type="button" class="btn btn-outline btn-sm btn-retry-card-alt" data-id="${item.id}" data-alt-model="${escapeHtml(altModel)}" title="Retry with alternative model ${escapeHtml(altModel)}">
+              <span>Retry with ${escapeHtml(altModel)}</span>
+            </button>
+          </div>
+          <p class="retry-hint-text">
+            <strong>Manual Retry:</strong> Retrying sends only this card without re-running completed prompts. Choosing an alternative model tests whether provider load is model-specific, and will be labeled as an alternative fallback.
+          </p>
+        `;
+      } else {
+        retryControlsHtml = `
+          <div class="card-retry-actions">
+            <button type="button" class="btn btn-secondary btn-sm btn-open-api-modal-card">
+              <span>Update Gemini API Key</span>
+            </button>
+          </div>
+          <p class="retry-hint-text">
+            This error is non-temporary. Please verify your API key in Google AI Studio before retrying.
+          </p>
+        `;
+      }
 
       bodyEl.innerHTML = `
         <div class="validation-msg error-msg">
           <strong>Request Failed:</strong> ${escapeHtml(item.error || 'Unknown error occurred.')}
         </div>
-        <p class="input-subhint mt-3">Model: <code>${escapeHtml(item.model || state.selectedModel)}</code></p>
+        ${retryControlsHtml}
+        <p class="input-subhint mt-3">Target Model: <code>${escapeHtml(item.model || state.selectedModel)}</code></p>
       `;
+
       metaEl.innerHTML = `
         <span class="meta-pill">Model: ${escapeHtml(item.model || state.selectedModel)}</span>
       `;
-      copyBtn.disabled = true;
+      if (copyBtn) copyBtn.disabled = true;
+    }
+  }
+
+  async function retryComparisonCard(cardId, modelOverride) {
+    const item = state.comparisonResults.find(r => r.id === cardId);
+    if (!item || item.isRetrying) return;
+
+    item.isRetrying = true;
+    const modelToUse = (modelOverride || item.model || state.selectedModel || 'gemini-3.5-flash-lite').trim();
+    const isAlt = Boolean(modelOverride && modelOverride !== (item.model || state.selectedModel));
+
+    // Update status badge to "Retrying..."
+    const statusBadge = document.getElementById(`status-${item.id}`);
+    if (statusBadge) {
+      statusBadge.className = 'result-status-badge status-retrying';
+      statusBadge.innerHTML = `<span class="spinner-sm"></span><span>Retrying...</span>`;
+    }
+
+    const bodyEl = document.getElementById(`body-${item.id}`);
+    if (bodyEl) {
+      bodyEl.innerHTML = `<p class="text-muted"><span class="spinner-sm"></span> Retrying prompt with <code>${escapeHtml(modelToUse)}</code>...</p>`;
+    }
+
+    const onRetry = (attempt, maxAttempts, phase, delayMs) => {
+      const badge = document.getElementById(`status-${item.id}`);
+      if (badge) {
+        if (phase === 'waiting') {
+          const sec = (delayMs ? (delayMs / 1000).toFixed(1) : '1.5');
+          badge.className = 'result-status-badge status-waiting';
+          badge.innerHTML = `<span class="spinner-sm"></span><span>Waiting to retry (${sec}s)...</span>`;
+        } else {
+          badge.className = 'result-status-badge status-retrying';
+          badge.innerHTML = `<span class="spinner-sm"></span><span>Retrying (${attempt}/${maxAttempts})...</span>`;
+        }
+      }
+    };
+
+    try {
+      const result = await executeGeminiRequest(item.prompt, modelToUse, state.apiKey, onRetry);
+      if (result.success) {
+        item.status = 'success';
+        item.response = result.text || '';
+        item.duration_ms = result.duration_ms || 0;
+        item.usage = result.usage || null;
+        item.error = null;
+        item.model = result.model || modelToUse;
+        item.isAlternativeModel = isAlt;
+        showToast(`Successfully received response for "${item.label}"!`, 'success');
+      } else {
+        item.status = 'error';
+        item.error = result.error || 'Retry failed.';
+        item.statusCode = result.statusCode;
+        item.retryable = result.retryable !== false;
+        item.alternative_model = result.alternative_model || getVerifiedAlternativeModel(modelToUse);
+        item.model = modelToUse;
+        item.isAlternativeModel = isAlt;
+        showToast(`Retry failed for "${item.label}".`, 'error');
+      }
+    } catch (err) {
+      item.status = 'error';
+      item.error = sanitizeErrorText(err.message || 'Unknown network error', state.apiKey);
+      item.retryable = true;
+      item.alternative_model = getVerifiedAlternativeModel(modelToUse);
+      item.model = modelToUse;
+      showToast(`Retry failed for "${item.label}".`, 'error');
+    } finally {
+      item.isRetrying = false;
+      updateResultCard(item);
+      renderObservableDifferences();
     }
   }
 
@@ -1640,7 +1779,12 @@
     const tokEl = isA ? dom.battleRespTokensA : dom.battleRespTokensB;
     const modEl = isA ? dom.battleRespModelA : dom.battleRespModelB;
 
-    modEl.textContent = (result && result.model) ? result.model : model;
+    const usedModel = (result && result.model) ? result.model : model;
+    if (result && result.isAlternativeModel) {
+      modEl.textContent = `${usedModel} (Fallback)`;
+    } else {
+      modEl.textContent = usedModel;
+    }
 
     if (!result) {
       durEl.textContent = 'Failed';
@@ -1661,12 +1805,109 @@
       bodyEl.innerHTML = renderMarkdown(result.text);
     } else {
       const errorMsg = result.error || 'An error occurred while generating this response.';
+      const altModel = (result && result.alternative_model) ? result.alternative_model : getVerifiedAlternativeModel(usedModel);
+      const isRetryable = result && result.retryable !== false;
+
+      let retryControls = '';
+      if (isRetryable) {
+        retryControls = `
+          <div class="card-retry-actions mt-3">
+            <button type="button" class="btn btn-secondary btn-sm btn-retry-battle" data-fighter="${fighter}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mr-1"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              <span>Retry Prompt ${fighter}</span>
+            </button>
+            <button type="button" class="btn btn-outline btn-sm btn-retry-battle-alt" data-fighter="${fighter}" data-alt-model="${escapeHtml(altModel)}">
+              <span>Retry with ${escapeHtml(altModel)}</span>
+            </button>
+          </div>
+          <p class="retry-hint-text">
+            <strong>Manual Retry:</strong> Retrying affects only Prompt ${fighter}; the other prompt's response is preserved.
+          </p>
+        `;
+      } else {
+        retryControls = `
+          <div class="card-retry-actions mt-3">
+            <button type="button" class="btn btn-secondary btn-sm btn-battle-enter-key">
+              <span>Update Gemini API Key</span>
+            </button>
+          </div>
+          <p class="retry-hint-text">
+            This error is non-temporary. Please verify your API key in Google AI Studio.
+          </p>
+        `;
+      }
+
       bodyEl.innerHTML = `
         <div class="alert-banner alert-danger">
           <h4 class="alert-title">Prompt ${fighter} Request Failed</h4>
           <p class="alert-desc">${escapeHtml(errorMsg)}</p>
         </div>
+        ${retryControls}
       `;
+    }
+  }
+
+  async function retryBattleFighter(fighter, modelOverride) {
+    if (state.battle.isRunning) return;
+    const isA = fighter === 'A';
+    const promptText = isA ? dom.battlePromptAInput.value.trim() : dom.battlePromptBInput.value.trim();
+    if (!promptText) {
+      showToast(`Prompt ${fighter} is empty.`, 'error');
+      return;
+    }
+
+    const currentResult = isA ? state.battle.resultA : state.battle.resultB;
+    const defaultModel = state.selectedModel || 'gemini-3.5-flash-lite';
+    const modelToUse = (modelOverride || (currentResult && currentResult.model) || defaultModel).trim();
+    const isAlt = Boolean(modelOverride && modelOverride !== ((currentResult && currentResult.model) || defaultModel));
+
+    const bodyEl = isA ? dom.battleRespBodyA : dom.battleRespBodyB;
+    const durEl = isA ? dom.battleRespDurationA : dom.battleRespDurationB;
+    const modEl = isA ? dom.battleRespModelA : dom.battleRespModelB;
+
+    modEl.textContent = isAlt ? `${modelToUse} (Fallback)` : modelToUse;
+    durEl.textContent = 'Retrying...';
+    bodyEl.innerHTML = `<p class="text-muted"><span class="spinner-sm"></span> Retrying Prompt ${fighter} with <code>${escapeHtml(modelToUse)}</code>...</p>`;
+
+    const onRetry = (attempt, maxAttempts, phase, delayMs) => {
+      if (phase === 'waiting') {
+        const sec = (delayMs ? (delayMs / 1000).toFixed(1) : '1.5');
+        durEl.textContent = `Wait ${sec}s`;
+      } else {
+        durEl.textContent = `Retry ${attempt}/${maxAttempts}`;
+      }
+    };
+
+    try {
+      const res = await executeGeminiRequest(promptText, modelToUse, state.apiKey, onRetry);
+      if (isAlt && res) {
+        res.isAlternativeModel = true;
+      }
+      if (isA) {
+        state.battle.resultA = res;
+      } else {
+        state.battle.resultB = res;
+      }
+      renderBattleResponse(fighter, res, modelToUse);
+      if (res.success) {
+        showToast(`Prompt ${fighter} response received!`, 'success');
+        dom.battleJudgementPanel.classList.remove('hidden');
+      } else {
+        showToast(`Prompt ${fighter} retry failed.`, 'error');
+      }
+    } catch (err) {
+      const errRes = {
+        success: false,
+        error: sanitizeErrorText(err.message || 'Unknown network error', state.apiKey),
+        model: modelToUse,
+        retryable: true,
+        alternative_model: getVerifiedAlternativeModel(modelToUse),
+        isAlternativeModel: isAlt
+      };
+      if (isA) state.battle.resultA = errRes;
+      else state.battle.resultB = errRes;
+      renderBattleResponse(fighter, errRes, modelToUse);
+      showToast(`Prompt ${fighter} retry failed.`, 'error');
     }
   }
 
@@ -2076,14 +2317,37 @@
       }
     });
 
-    // Event Delegation for Comparison Result Cards (Copy Response)
+    // Event Delegation for Comparison Result Cards (Copy Response, Retries, Key Modal)
     dom.comparisonResultsGrid.addEventListener('click', e => {
-      const target = e.target.closest('.btn-copy-result');
-      if (!target) return;
-      const resId = target.getAttribute('data-id');
-      const item = state.comparisonResults.find(r => r.id === resId);
-      if (item && item.response) {
-        copyTextToClipboard(item.response, `Copied ${item.label} response!`);
+      const copyBtn = e.target.closest('.btn-copy-result');
+      if (copyBtn) {
+        const resId = copyBtn.getAttribute('data-id');
+        const item = state.comparisonResults.find(r => r.id === resId);
+        if (item && item.response) {
+          copyTextToClipboard(item.response, `Copied ${item.label} response!`);
+        }
+        return;
+      }
+
+      const retryBtn = e.target.closest('.btn-retry-card');
+      if (retryBtn) {
+        const resId = retryBtn.getAttribute('data-id');
+        retryComparisonCard(resId);
+        return;
+      }
+
+      const retryAltBtn = e.target.closest('.btn-retry-card-alt');
+      if (retryAltBtn) {
+        const resId = retryAltBtn.getAttribute('data-id');
+        const altModel = retryAltBtn.getAttribute('data-alt-model');
+        retryComparisonCard(resId, altModel);
+        return;
+      }
+
+      const openKeyBtn = e.target.closest('.btn-open-api-modal-card');
+      if (openKeyBtn) {
+        openModal(dom.apiKeyModal);
+        return;
       }
     });
 
@@ -2174,6 +2438,31 @@
     }
     if (dom.btnSaveVerdict) {
       dom.btnSaveVerdict.addEventListener('click', saveBattleVerdict);
+    }
+
+    if (dom.battleResultsGrid) {
+      dom.battleResultsGrid.addEventListener('click', e => {
+        const retryBtn = e.target.closest('.btn-retry-battle');
+        if (retryBtn) {
+          const fighter = retryBtn.getAttribute('data-fighter');
+          retryBattleFighter(fighter);
+          return;
+        }
+
+        const retryAltBtn = e.target.closest('.btn-retry-battle-alt');
+        if (retryAltBtn) {
+          const fighter = retryAltBtn.getAttribute('data-fighter');
+          const altModel = retryAltBtn.getAttribute('data-alt-model');
+          retryBattleFighter(fighter, altModel);
+          return;
+        }
+
+        const enterKeyBtn = e.target.closest('.btn-battle-enter-key');
+        if (enterKeyBtn) {
+          openModal(dom.apiKeyModal);
+          return;
+        }
+      });
     }
 
     // Keyboard shortcuts: Escape to close modals
